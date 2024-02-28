@@ -1,0 +1,312 @@
+#define ENCODER_OPTIMIZE_INTERRUPTS
+#include <Encoder.h>
+#include <Wire.h>
+#define MY_ADDR 8
+// initialize desired position
+float desired_position[2] = {0, 0}; 
+int i = 0;
+
+// Global variables to be used for I2C communication
+;volatile uint8_t offset = 0;
+volatile uint8_t instruction[32] = {0}; // Assuming a max command length of 32 for this example
+volatile uint8_t msgLength;
+
+// Gain, battery voltage
+float Kp = 2.0;
+float batteryVoltage = 7.8;
+
+// Error and PWM both wheels 
+float error[2]; 
+int PWM[2]; 
+
+//Constant
+const float pi = 3.14159;
+
+//Encoder left and right 
+Encoder motor1(2, 5); 
+Encoder motor2(3, 6); 
+
+// initialize encoder counts
+long encoder_count[2]; 
+
+// Enable pin
+const int enablePin = 4;
+
+
+// Voltage sign pins, 7 & 8
+const int vsignPin7 = 7;
+const int vsignPin8 = 8; 
+
+// Motor voltage pins 9 & 10
+const int motorPin[2] = {9, 10}; 
+
+// time variables
+unsigned long desired_Ts_ms = 10; 
+unsigned long last_time_ms;
+unsigned long start_time;
+float current_time = 0;
+
+// Motor velocity variables
+float motorVelocity[2] = {0.0, 0.0}; 
+
+// Motor voltage variables
+float motorVoltage[2] = {0.0, 0.0}; 
+
+// Previous count variables
+long pos_counts_prev[2]; 
+
+// Initialize previous radian variables
+float pos_previous_rad[2]; 
+
+// Initialize quadrant
+int quadr;
+int left_wheel;
+int right_wheel;
+
+// PI controller parameters, position control 
+float Kp_pos = 8.764; 
+float Ki_pos = 1.1; // was 1.5 
+float Kd_pos = 0.01; 
+float integral_error[2] = {0.0, 0.0}; 
+float prev_error[2] = {0.0, 0.0}; 
+// Variables for calculating position
+long pos_counts[2];
+float pos_rad[2];
+float position_error[2];
+float desired_speed[2];
+
+
+void setup() {
+  // Baud rate 
+  Serial.begin(115200);
+  //Serial.begin(9600); 
+
+  Wire.begin(MY_ADDR);
+  // Set callback for I2C receive
+  Wire.onReceive(receiveEvent);
+  pinMode(vsignPin7, OUTPUT);
+  //digitalWrite(vsignPin[0], LOW);
+  pinMode(vsignPin8, OUTPUT);
+  //digitalWrite(vsignPin[1], LOW);
+  pinMode(motorPin[0], OUTPUT);
+  // digitalWrite(motorPin[0], LOW); 
+  pinMode(motorPin[1], OUTPUT);
+  // digitalWrite(motorPin[1], LOW); 
+
+  // Enable pin as pin 4, high
+  pinMode(enablePin, OUTPUT);
+  digitalWrite(enablePin, HIGH);
+
+  // Previous counts and previous radians
+  pos_counts_prev[0] = -motor1.read();
+  pos_previous_rad[0] = 2 * pi * static_cast<float>(pos_counts_prev[0]) / 3200;
+  pos_counts_prev[1] = motor2.read();
+  pos_previous_rad[1] = 2 * pi * static_cast<float>(pos_counts_prev[1]) / 3200;
+
+  // Set up last time in milliseconds
+  start_time = millis();
+}
+
+  void loop() {
+  // If there is data on the buffer, read it
+  if (msgLength > 0) {
+    if (offset == 1) {
+      digitalWrite(LED_BUILTIN, instruction[0]);
+    }
+    receiveEvent(instruction);
+    printReceived();
+    // Ensure instruction array is properly sized for quadrant function
+    if (msgLength >= 2) { // Ensure there are at least 2 bytes to process
+      quadr = quadrant(instruction);
+      Serial.print(quadr);
+      Serial.println();
+    }
+    msgLength = 0; // Reset message length after processing
+  }
+
+  current_time = (float)((millis() - start_time) / 1000);
+  float time_ellapsed = (float)((millis() - last_time_ms) / 1000.0);
+
+  // find position in counts of wheel one using ISR functions
+  pos_counts[0] = - motor1.read();
+
+  // Wrap around for when the wheel spins over one revolution
+   while (pos_counts[0] >= 3200) { pos_counts[0] = pos_counts[0] - 3200; }
+   while (pos_counts[0] <= -3200) { pos_counts[0] = pos_counts[0] + 3200; }
+
+  pos_rad[0] = 2 * pi * (double)(pos_counts[0]) / (double)3200.0;
+
+  // Calculate velocity for Motor 1
+  motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0]) / time_ellapsed;
+
+  // find position in counts of wheel two using ISR functions
+  pos_counts[1] = motor2.read();
+
+  // Wrap around for when the wheel spins over one revolution
+   while (pos_counts[1] >= 3200) { pos_counts[1] = pos_counts[1] - 3200; }
+   while (pos_counts[1] <= -3200) { pos_counts[1] = pos_counts[1] + 3200; }
+
+  pos_rad[1] = 2 * pi * (double)(pos_counts[1]) / (double)3200;
+
+  // Calculate velocity for Motor 2
+  motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1]) / time_ellapsed;
+
+  // Set previous positions equal to current positions for the next iteration
+  for (int i = 0; i < 2; i++) {
+    pos_counts_prev[i] = pos_counts[i];
+    pos_previous_rad[i] = pos_rad[i];
+  }
+
+  // if else statements so the correct wheels are set to one for each quadrant
+  if (quadr == 1) {
+    left_wheel = 0;
+    right_wheel = 0;
+  } else if (quadr == 2) {
+    left_wheel = 0;
+    right_wheel = 1;
+  } else if (quadr == 3) {
+    left_wheel = 1;
+    right_wheel = 1;
+  } else if (quadr == 4) {
+    left_wheel = 1;
+    right_wheel = 0;
+  } 
+
+  // change desired position based on whether the left wheel or right wheel should be spinning
+  if (left_wheel == 1) {
+    desired_position[0] = pi;
+  } else if (left_wheel == 0) {
+    desired_position[0] = 0;
+  }
+
+  if (right_wheel == 1) {
+    desired_position[1] = pi;
+  } else if (right_wheel == 0) {
+    desired_position[1] = 0;
+  }
+
+  // for loop to calculate position error, integral error, derivative error, and desired speed
+  for (int i = 0; i < 2; i++) {
+    position_error[i] = desired_position[i] - pos_rad[i];
+    integral_error[i] = integral_error[i] + position_error[i] * ((float)desired_Ts_ms / 1000);
+    float derivative_error = (position_error[i] - prev_error[i]) / ((float)desired_Ts_ms / 1000);
+    prev_error[i] = position_error[i];
+
+    desired_speed[i] = (Kp_pos * position_error[i]) + (Ki_pos * integral_error[i]); // - (Kd_pos * derivative_error);
+   // error[i] = desired_speed[i] - motorVelocity[i];
+   //motorVoltage[i] = (Kp * error[i]);
+   motorVoltage[i] = (0.1 * desired_speed[i]);
+
+    /*  if (i == 0) {
+        motorVoltage[0] = (Kp * error[0]);
+      } else {
+        motorVoltage[1] = (Kp * error[1]);
+  }*/
+    // determine direction of motor voltages
+   if (motorVoltage[0] >= 0) {
+      digitalWrite(vsignPin7, HIGH);
+    } else {
+      digitalWrite(vsignPin7, LOW);
+    }
+
+    if (motorVoltage[1] >= 0) {
+      digitalWrite(vsignPin8, HIGH);
+    } else {
+      digitalWrite(vsignPin8, LOW);
+    }
+
+    // calculate PWM
+  //  motorVoltage[1] = 5;
+    PWM[i] = 255 * abs(motorVoltage[i] / batteryVoltage);
+
+    // analog write the PWM to the motors
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+  } // end of for loop
+
+  // Update time variable
+
+
+
+    // Print relevant data to the serial monitor
+if (current_time <= 50) {  
+ 
+
+/*
+//  Serial.println(""); 
+//  Serial.print("\t"); 
+ Serial.print("\n");
+ Serial.print("time ");
+ Serial.print(current_time); 
+// Serial.print("\t"); 
+// Serial.print(pos_counts[0]); 
+ Serial.print("\t"); 
+ Serial.print("pos_rad1 ");
+  Serial.print((double)pos_rad[0]); 
+ Serial.print("\t"); 
+ //Serial.print((double)motorVelocity[0]);
+//Serial.print("\t"); 
+Serial.print("pos_error1 ");
+ Serial.print((double)position_error[0]);
+  Serial.print("\t"); 
+ //Serial.print((double)desired_speed[0]);
+//Serial.print("\t"); 
+Serial.print("voltage1 ");
+ Serial.print((double)motorVoltage[0]);
+Serial.print("\t"); 
+Serial.print("\t"); 
+Serial.print("pos_rad 2 ");
+  Serial.print((double)pos_rad[1]); 
+ Serial.print("\t"); 
+ //Serial.print((double)motorVelocity[0]);
+//Serial.print("\t"); 
+Serial.print("pos_error2 ");
+ Serial.print((double)position_error[1]);
+  Serial.print("\t"); 
+ //Serial.print((double)desired_speed[0]);
+//Serial.print("\t"); 
+Serial.print("voltage2 ");
+ Serial.print((double)motorVoltage[1]);
+  }
+*/
+  
+  // Delay
+  while (millis() < last_time_ms + desired_Ts_ms) {
+    
+ }
+  last_time_ms = millis();
+
+}
+  }
+void receiveEvent(int a) {
+  // Reset msgLength for new data
+  // Read data while available
+  while (Wire.available()) {
+    instruction[msgLength++] = Wire.read();
+  }
+}
+int quadrant(uint8_t instruction[]) {
+  int quad = 0; // Default to an undefined quadrant
+
+  // Directly compare the two elements of the instruction array
+  if (instruction[1] == 48 && instruction[2] == 48) {
+    quad = 1;
+  }  
+  if (instruction[1] == 48 && instruction[2] == 49) {
+    quad = 2;
+  } 
+  if (instruction[1] == 49 && instruction[2] == 49) {
+    quad = 3;
+  }
+  if (instruction[1] == 49 && instruction[2] == 48) {
+    quad = 4;
+  }
+return(quad);
+}
+void printReceived() {
+  for (int i = 0; i < msgLength; i++) {
+    Serial.print(String(instruction[i]) + "\t");
+  }
+  Serial.println(); // End the line after printing all data
+}
