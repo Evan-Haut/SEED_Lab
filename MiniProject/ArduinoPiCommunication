@@ -1,3 +1,7 @@
+// In order to connect he arduino to the Rasberry Pi, connect the ground pin to Pin 6, A4 to pin 4, and A5 to pin 5.
+
+
+
 #include <Wire.h>
 #define MY_ADDR 8
 
