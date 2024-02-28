@@ -1,3 +1,7 @@
+// Team 4
+// 2-16-24
+// This code allows for the desired rotation of the wheels given an input quadrant 
+
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 
@@ -12,14 +16,14 @@ float batteryVoltage = 7.8;
 float error[2]; 
 int PWM[2]; 
 
-//Constant
+// Constant
 const float pi = 3.141592653589793238462643383279502884197;
 
-//Encoder left and right 
+// Encoder left and right initialization  
 Encoder motor1(2, 5); 
 Encoder motor2(3, 6); 
 
-// initialize encoder counts
+// Initialize encoder counts
 long encoder_count[2]; 
 
 // Enable pin
@@ -33,7 +37,7 @@ const int vsignPin8 = 8;
 // Motor voltage pins 9 & 10
 const int motorPin[2] = {9, 10}; 
 
-// time variables
+// Time variables
 unsigned long desired_Ts_ms = 10; 
 unsigned long last_time_ms;
 unsigned long start_time;
@@ -62,6 +66,7 @@ float Ki_pos = 0.02; // was 1.5
 float Kd_pos = 0.2; 
 float integral_error[2] = {0.0, 0.0}; 
 float prev_error[2] = {0.0, 0.0}; 
+
 // Variables for calculating position
 long pos_counts[2];
 float pos_rad[2];
@@ -150,7 +155,7 @@ void loop() {
     right_wheel = 0;
   } 
 
-  // change desired position based on whether the left wheel or right wheel should be spinning
+  // change desired position based spinning wheel 
   if (left_wheel == 1) {
     desired_position[0] = pi;
   } else if (left_wheel == 0) {
@@ -163,7 +168,7 @@ void loop() {
     desired_position[1] = 0;
   }
 
-  // for loop to calculate position error, integral error, derivative error, and desired speed
+  // Calculate position error, integral error, derivative error, and desired speed
   for (int i = 0; i < 2; i++) {
     position_error[i] = desired_position[i] - pos_rad[i];
     integral_error[i] = integral_error[i] + position_error[i] * ((float)desired_Ts_ms / 1000);
@@ -206,11 +211,10 @@ void loop() {
   // Update time variable
 
 
+// Print relevant data to the serial monitor
+// Print statements helped with debugging
 
-    // Print relevant data to the serial monitor
 if (current_time <= 50) {  
- 
-
 
 //  Serial.println(""); 
 //  Serial.print("\t"); 
