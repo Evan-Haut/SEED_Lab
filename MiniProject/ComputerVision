@@ -8,17 +8,12 @@ from smbus2 import SMBus
 import board
 
 #LCD funtion
-
 def LCD_funct(a):
-    lcd.message = a
-    
+    lcd.message = a   
 
 #arduino Function
-
 def I2C_funct(b):
     i2c.write_i2c_block_data(8,0,b)
-    
-
 
 #initalize threads
 x = Thread(target=LCD_funct, args = (1,), daemon = True)
@@ -26,21 +21,23 @@ y = Thread(target=I2C_funct, args = (1,), daemon = True)
 x.start
 y.start
 
+#give inital values
 temp = "banana"
 ard_addr = 8
+
+#I2C setup
 i2c = SMBus(1)
 i4c = board.I2C()
 lcd = character_lcd.Character_LCD_RGB_I2C(i4c, 2, 16)
 lcd.clear()
 lcd.color = [0,100,0]
-
-
         
 # initialize the camera. If channel 0 doesn't work, try channel 1
 aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
 camera = cv2.VideoCapture(0)
 while (True):
     ret, frame = camera.read()
+    #detect aruco markers
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict)
     overlay = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
@@ -67,9 +64,10 @@ while (True):
             if temp != quadrant:
                 command = [ord(character) for character in quadrant] #change logic, not working
                 temp = quadrant
+            #send quadrant over I2C to LCD and Arduino
                 LCD_funct(quadrant)
-                
                 I2C_funct(command)
+            #draw overlay over image
             cv2.putText(frame, quadrant, (centroid_x, centroid_y), cv2.FONT_HERSHEY_SIMPLEX, 1,
                         (0, 0, 0), 2)
             cv2.drawContours(frame, [corners[i].astype(int)], -1, (0, 255, 0),2)
