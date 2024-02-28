@@ -1,1 +1,69 @@
+#include <Wire.h>
+#define MY_ADDR 8
 
+// Global variables to be used for I2C communication
+volatile uint8_t offset = 0;
+volatile uint8_t instruction[32] = {0}; // Assuming a max command length of 32 for this example
+volatile uint8_t msgLength = 0;
+
+void setup() {
+  Serial.begin(115200);
+  // We want to control the built-in LED (pin 13)
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Initialize I2C
+  Wire.begin(MY_ADDR);
+  // Set callback for I2C receive
+  Wire.onReceive(receiveEvent);
+}
+
+void loop() {
+  // If there is data on the buffer, read it
+  if (msgLength > 0) {
+    if (offset == 1) {
+      digitalWrite(LED_BUILTIN, instruction[0]);
+    }
+    printReceived();
+    // Ensure instruction array is properly sized for quadrant function
+    if (msgLength >= 2) { // Ensure there are at least 2 bytes to process
+      quadrant(instruction);
+    }
+    msgLength = 0; // Reset message length after processing
+  }
+}
+
+// printReceived helps us see what data we are getting from the leader
+void printReceived() {
+  for (int i = 0; i < msgLength; i++) {
+    Serial.print(String(instruction[i]) + "\t");
+  }
+  Serial.println(); // End the line after printing all data
+}
+
+// Function called when an I2C interrupt event happens
+void receiveEvent(int howMany) {
+  // Reset msgLength for new data
+  msgLength = 0; 
+  // Read data while available
+  while (Wire.available()) {
+    instruction[msgLength++] = Wire.read();
+  }
+}
+
+int quadrant(uint8_t instruction[]) {
+  int quad = 0; // Default to an undefined quadrant
+
+  // Directly compare the two elements of the instruction array
+  if (instruction[1] == 48 && instruction[2] == 48) {
+    quad = 1;
+  }  
+  if (instruction[1] == 48 && instruction[2] == 49) {
+    quad = 2;
+  } 
+  if (instruction[1] == 49 && instruction[2] == 49) {
+    quad = 3;
+  }
+  if (instruction[1] == 49 && instruction[2] == 48) {
+    quad = 4;
+  }
+return(quad);
+}
