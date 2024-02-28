@@ -1,0 +1,80 @@
+from time import sleep
+import numpy as np
+import cv2
+from cv2 import aruco
+import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
+from threading import Thread
+from smbus2 import SMBus
+import board
+
+#LCD funtion
+
+def LCD_funct(a):
+    lcd.message = a
+    
+
+#arduino Function
+
+def I2C_funct(b):
+    i2c.write_i2c_block_data(8,0,b)
+    
+
+
+#initalize threads
+x = Thread(target=LCD_funct, args = (1,), daemon = True)
+y = Thread(target=I2C_funct, args = (1,), daemon = True)
+x.start
+y.start
+
+temp = "banana"
+ard_addr = 8
+i2c = SMBus(1)
+i4c = board.I2C()
+lcd = character_lcd.Character_LCD_RGB_I2C(i4c, 2, 16)
+lcd.clear()
+lcd.color = [0,100,0]
+
+
+        
+# initialize the camera. If channel 0 doesn't work, try channel 1
+aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
+camera = cv2.VideoCapture(0)
+while (True):
+    ret, frame = camera.read()
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    corners, ids, rejected = aruco.detectMarkers(gray, aruco_dict)
+    overlay = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+    overlay = aruco.drawDetectedMarkers(frame, corners, borderColor=4)
+    if not ids is None:
+        for i, id_ in enumerate(ids):
+            # Calculate centroid of the marker
+            centroid_x = int((corners[i][0][0][0] + corners[i][0][1][0] + corners[i][0][2][0] + corners[i][0][3][0]) / 4)
+            centroid_y = int((corners[i][0][0][1] + corners[i][0][1][1] + corners[i][0][2][1] + corners[i][0][3][1]) / 4)
+
+            # Determine quadrant
+            if centroid_x < frame.shape[1] // 2:
+                if centroid_y < frame.shape[0] // 2:
+                    quadrant = "01"
+                else:
+                    quadrant = "11"
+            else:
+                if centroid_y < frame.shape[0] // 2:
+                    quadrant = "00"
+                else:
+                    quadrant = "10"
+
+            # Draw the detected marker and its quadrant on the image
+            if temp != quadrant:
+                command = [ord(character) for character in quadrant] #change logic, not working
+                temp = quadrant
+                LCD_funct(quadrant)
+                
+                I2C_funct(command)
+            cv2.putText(frame, quadrant, (centroid_x, centroid_y), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 0, 0), 2)
+            cv2.drawContours(frame, [corners[i].astype(int)], -1, (0, 255, 0),2)
+    cv2.imshow("overlay", overlay)
+    k = cv2.waitKey(1) & 0xFF
+    if k == ord('q'):
+        break
+cv2.destroyAllWindows()
