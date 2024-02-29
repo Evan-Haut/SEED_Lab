@@ -220,12 +220,6 @@ void setup() {
 
    motorVoltage[i] = (0.1 * desired_speed[i]);
 
-    /*  if (i == 0) {
-        motorVoltage[0] = (Kp * error[0]);
-      } else {
-        motorVoltage[1] = (Kp * error[1]);
-  }*/
-
     // Direction of motor voltages
    if (motorVoltage[0] >= 0) {
       digitalWrite(vsignPin7, HIGH);
@@ -254,43 +248,7 @@ void setup() {
 
 if (current_time <= 50) {  
  
-/*
-//  Serial.println(""); 
-//  Serial.print("\t"); 
- Serial.print("\n");
- Serial.print("time ");
- Serial.print(current_time); 
-// Serial.print("\t"); 
-// Serial.print(pos_counts[0]); 
- Serial.print("\t"); 
- Serial.print("pos_rad1 ");
-  Serial.print((double)pos_rad[0]); 
- Serial.print("\t"); 
- //Serial.print((double)motorVelocity[0]);
-//Serial.print("\t"); 
-Serial.print("pos_error1 ");
- Serial.print((double)position_error[0]);
-  Serial.print("\t"); 
- //Serial.print((double)desired_speed[0]);
-//Serial.print("\t"); 
-Serial.print("voltage1 ");
- Serial.print((double)motorVoltage[0]);
-Serial.print("\t"); 
-Serial.print("\t"); 
-Serial.print("pos_rad 2 ");
-  Serial.print((double)pos_rad[1]); 
- Serial.print("\t"); 
- //Serial.print((double)motorVelocity[0]);
-//Serial.print("\t"); 
-Serial.print("pos_error2 ");
- Serial.print((double)position_error[1]);
-  Serial.print("\t"); 
- //Serial.print((double)desired_speed[0]);
-//Serial.print("\t"); 
-Serial.print("voltage2 ");
- Serial.print((double)motorVoltage[1]);
-  }
-*/
+
   
   // Delay
   while (millis() < last_time_ms + desired_Ts_ms) {
