@@ -1,3 +1,23 @@
+// Team 4
+// Mini Project
+// 2-28-24
+
+// The code implements a closed-loop control system using PID controllers to regulate the position. 
+// The desired position is updated based on the quadrant information received through I2C, 
+// and the motors are controlled to achieve the desired position. 
+
+// The localization and controls side of this is composed of the two motors, an arduino, the shield, breadboard with 
+// an h-bridge and a voltage monitor. The controls team ensure proper connection of all these 
+// components and wrote code to allow the motors to turn to the desired input quadrant. Simulink
+// was used to tune the necessary values for the PID controller and also tested values to figure out 
+// values best fit our controller. 
+
+// The vision and commincation side used a raspberry pi to find the quadrant in which the aruco marker was located.
+// A program was then written in arduino to relay the information from the pi to the arduino controls code.
+// Both arduino programs were combined and makes up the contents of this code. 
+
+
+
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h>
@@ -7,7 +27,7 @@ float desired_position[2] = {0, 0};
 int i = 0;
 
 // Global variables to be used for I2C communication
-;volatile uint8_t offset = 0;
+volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0}; // Assuming a max command length of 32 for this example
 volatile uint8_t msgLength;
 
@@ -19,28 +39,28 @@ float batteryVoltage = 7.8;
 float error[2]; 
 int PWM[2]; 
 
-//Constant
+// Constant
 const float pi = 3.14159;
 
-//Encoder left and right 
+// Encoder left and right declaration
 Encoder motor1(2, 5); 
 Encoder motor2(3, 6); 
 
-// initialize encoder counts
+// Initialize encoder counts
 long encoder_count[2]; 
 
 // Enable pin
 const int enablePin = 4;
 
 
-// Voltage sign pins, 7 & 8
+// Voltage sign pins
 const int vsignPin7 = 7;
 const int vsignPin8 = 8; 
 
-// Motor voltage pins 9 & 10
+// Motor voltage pins 
 const int motorPin[2] = {9, 10}; 
 
-// time variables
+// Time variables
 unsigned long desired_Ts_ms = 10; 
 unsigned long last_time_ms;
 unsigned long start_time;
@@ -69,6 +89,7 @@ float Ki_pos = 1.1; // was 1.5
 float Kd_pos = 0.01; 
 float integral_error[2] = {0.0, 0.0}; 
 float prev_error[2] = {0.0, 0.0}; 
+
 // Variables for calculating position
 long pos_counts[2];
 float pos_rad[2];
@@ -97,7 +118,7 @@ void setup() {
   pinMode(enablePin, OUTPUT);
   digitalWrite(enablePin, HIGH);
 
-  // Previous counts and previous radians
+  // Previous counts, previous radians
   pos_counts_prev[0] = -motor1.read();
   pos_previous_rad[0] = 2 * pi * static_cast<float>(pos_counts_prev[0]) / 3200;
   pos_counts_prev[1] = motor2.read();
@@ -127,37 +148,37 @@ void setup() {
   current_time = (float)((millis() - start_time) / 1000);
   float time_ellapsed = (float)((millis() - last_time_ms) / 1000.0);
 
-  // find position in counts of wheel one using ISR functions
+  // Wheel one position, in counts, using ISR functions
   pos_counts[0] = - motor1.read();
 
-  // Wrap around for when the wheel spins over one revolution
+  // Wrap around when the wheel spins over one revolution
    while (pos_counts[0] >= 3200) { pos_counts[0] = pos_counts[0] - 3200; }
    while (pos_counts[0] <= -3200) { pos_counts[0] = pos_counts[0] + 3200; }
 
   pos_rad[0] = 2 * pi * (double)(pos_counts[0]) / (double)3200.0;
 
-  // Calculate velocity for Motor 1
+  // Velocity calculation, Motor 1
   motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0]) / time_ellapsed;
 
-  // find position in counts of wheel two using ISR functions
+  // Wheel two position, in counts, using ISR functions
   pos_counts[1] = motor2.read();
 
-  // Wrap around for when the wheel spins over one revolution
+  // Wrap around when the wheel spins over one revolution
    while (pos_counts[1] >= 3200) { pos_counts[1] = pos_counts[1] - 3200; }
    while (pos_counts[1] <= -3200) { pos_counts[1] = pos_counts[1] + 3200; }
 
   pos_rad[1] = 2 * pi * (double)(pos_counts[1]) / (double)3200;
 
-  // Calculate velocity for Motor 2
+  // Velocity calculation, Motor 2
   motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1]) / time_ellapsed;
 
-  // Set previous positions equal to current positions for the next iteration
+  // Previous positions = to current positions for next iteration
   for (int i = 0; i < 2; i++) {
     pos_counts_prev[i] = pos_counts[i];
     pos_previous_rad[i] = pos_rad[i];
   }
 
-  // if else statements so the correct wheels are set to one for each quadrant
+  // if else statements, setting wheels, based on quadrant
   if (quadr == 1) {
     left_wheel = 0;
     right_wheel = 0;
@@ -172,7 +193,7 @@ void setup() {
     right_wheel = 0;
   } 
 
-  // change desired position based on whether the left wheel or right wheel should be spinning
+  // If else statements for desired position, based on wheel 
   if (left_wheel == 1) {
     desired_position[0] = pi;
   } else if (left_wheel == 0) {
@@ -185,7 +206,7 @@ void setup() {
     desired_position[1] = 0;
   }
 
-  // for loop to calculate position error, integral error, derivative error, and desired speed
+  // Calculate position error, integral error, derivative error, and desired speed
   for (int i = 0; i < 2; i++) {
     position_error[i] = desired_position[i] - pos_rad[i];
     integral_error[i] = integral_error[i] + position_error[i] * ((float)desired_Ts_ms / 1000);
@@ -193,8 +214,10 @@ void setup() {
     prev_error[i] = position_error[i];
 
     desired_speed[i] = (Kp_pos * position_error[i]) + (Ki_pos * integral_error[i]); // - (Kd_pos * derivative_error);
+
    // error[i] = desired_speed[i] - motorVelocity[i];
    //motorVoltage[i] = (Kp * error[i]);
+
    motorVoltage[i] = (0.1 * desired_speed[i]);
 
     /*  if (i == 0) {
@@ -202,7 +225,8 @@ void setup() {
       } else {
         motorVoltage[1] = (Kp * error[1]);
   }*/
-    // determine direction of motor voltages
+
+    // Direction of motor voltages
    if (motorVoltage[0] >= 0) {
       digitalWrite(vsignPin7, HIGH);
     } else {
@@ -215,7 +239,7 @@ void setup() {
       digitalWrite(vsignPin8, LOW);
     }
 
-    // calculate PWM
+  // Calculate PWM
   //  motorVoltage[1] = 5;
     PWM[i] = 255 * abs(motorVoltage[i] / batteryVoltage);
 
@@ -223,16 +247,13 @@ void setup() {
     analogWrite(motorPin[1], min(PWM[0], 255));
     analogWrite(motorPin[0], min(PWM[1], 255));
 
-  } // end of for loop
+  } 
 
-  // Update time variable
+// Print relevant data to the serial monitor
+// Helped with debugging 
 
-
-
-    // Print relevant data to the serial monitor
 if (current_time <= 50) {  
  
-
 /*
 //  Serial.println(""); 
 //  Serial.print("\t"); 
@@ -276,9 +297,9 @@ Serial.print("voltage2 ");
     
  }
   last_time_ms = millis();
-
 }
   }
+
 void receiveEvent(int a) {
   // Reset msgLength for new data
   // Read data while available
@@ -286,6 +307,7 @@ void receiveEvent(int a) {
     instruction[msgLength++] = Wire.read();
   }
 }
+
 int quadrant(uint8_t instruction[]) {
   int quad = 0; // Default to an undefined quadrant
 
@@ -302,7 +324,9 @@ int quadrant(uint8_t instruction[]) {
   if (instruction[1] == 49 && instruction[2] == 48) {
     quad = 4;
   }
+
 return(quad);
+
 }
 void printReceived() {
   for (int i = 0; i < msgLength; i++) {
