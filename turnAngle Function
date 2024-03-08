@@ -1,0 +1,69 @@
+void turnAngle(double angle) {
+    // Convert angle from degrees to radians
+    double angleRad = angle * PI / 180.0;
+    
+
+    // Calculate the wheelbase, which is the distance between the two wheels.
+    // You'll need to measure this distance for your specific robot and replace 'wheelbase' with that value.
+    double wheelbase = 15.0; // Replace 10.0 with your robot's wheelbase in inches or centimeters.
+
+    // Calculate the distance each wheel needs to travel
+    double distancePerWheel = (wheelbase * angleRad) / 2.0;
+
+    // Convert distance to radians for each wheel
+    double distanceRadLeft = (distancePerWheel * 2 * PI) / circ;
+    double distanceRadRight = -distanceRadLeft; // One wheel should go backward for turning
+
+    // Reset encoder counts and error integrals
+    motor1.write(0);
+    motor2.write(0);
+    integral_error[0] = 0.0;
+    integral_error[1] = 0.0;
+    prev_error[0] = 0.0;
+    prev_error[1] = 0.0;
+
+    // Set desired positions
+    desired_position[0] = distanceRadLeft;
+    desired_position[1] = distanceRadRight;
+
+    // Use a loop to keep updating the motors until the robot reaches the desired angle
+   // Use a loop to keep updating the motors until the robot reaches the desired angle
+bool reached = false;
+while (!reached) {
+    // Update current position
+    pos_counts[0] = -motor1.read();
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200.0;
+    pos_counts[1] = motor2.read();
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200.0;
+
+    // Calculate position error for each wheel
+    for (int i = 0; i < 2; i++) {
+        position_error[i] = desired_position[i] - pos_rad[i];
+        integral_error[i] += position_error[i] * ((float)desired_Ts_ms / 1000.0);
+        float derivative_error = (position_error[i] - prev_error[i]) / ((float)desired_Ts_ms / 1000.0);
+        prev_error[i] = position_error[i];
+
+        // Calculate desired speed based on PI controller
+        desired_speed[i] = (Kp_pos * position_error[i]) + (Ki_pos * integral_error[i]);
+
+        // Update motor voltage and direction
+        motorVoltage[i] = (0.1 * desired_speed[i]);
+        if (motorVoltage[i] <= 0) {
+            digitalWrite(i == 0 ? vsignPin7 : vsignPin8, HIGH);
+        } else {
+            digitalWrite(i == 0 ? vsignPin7 : vsignPin8, LOW);
+        }
+
+        // Calculate and apply PWM
+        PWM[i] = 255 * abs(motorVoltage[i] / batteryVoltage);
+        analogWrite(motorPin[i], min(PWM[i], 255));
+    }
+
+    // Check if both wheels have reached their desired positions within a small threshold
+    reached = (abs(position_error[0]) < someSmallValue) && (abs(position_error[1]) < someSmallValue);
+
+    // Delay to prevent too fast updates
+    delay(desired_Ts_ms);
+}
+
+}
