@@ -1,8 +1,19 @@
 import numpy as np
 import cv2 as cv
 import glob
+import board
+from smbus2 import SMBus
+from threading import Thread
 from cv2 import aruco
- 
+import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
+
+#I2c info
+i2c = SMBus(1)
+i4c = board.I2C()
+#LCD funct.
+lcd = character_lcd.Character_LCD_RGB_I2C(i4c, 2, 16)
+def LCD_funct(a):
+    lcd.message = a
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
  
@@ -15,7 +26,11 @@ objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
  
 images = glob.glob('/home/seedlab/Pictures/*.jpg')
- 
+#initialize threading
+
+x = Thread(target=LCD_funct, args = (1,), daemon = True)
+
+x.start
 for fname in images:
     img = cv.imread(fname)
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -28,7 +43,50 @@ for fname in images:
         print("HI")
         objpoints.append(objp)
  
-        corners2 = cv.cornerSubPix(gray,corners, (11,11), (-1,-1), criteria)
+        corne.cvtColor(frame, cv.COLOR_BGR2GRAY)
+    
+    # Load the ArUco dictionary and parameters
+    aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_50)
+    parameters = cv.aruco.DetectorParameters()
+    
+    # Detect markers in the frame
+    corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+    
+    # If markers are found, draw the axis and calculate the angle
+    if ids is not None:
+        for i in range(len(ids)):
+            
+            # Calculate the marker center
+            marker_center = np.mean(corners[i][0], axis=0)
+            
+            # Calculate the angle
+            angle = calculate_angle(marker_center, np.array([frame.shape[1] / 2, frame.shape[0] / 2]))
+            angle = angle - 90
+            ang = int(angle)
+            # Print the angle in treminal and onto LCD
+            print(f"Angle with marker {ids[i][0]}: {ang} degrees")
+            LCD_funct(str(ang))
+            
+    # Display the frame with the axis
+    cv.imshow("Detected ArUco Marker", frame)
+
+cap = cv.VideoCapture(0)
+
+while True:
+    # Capture frame-by-frame
+    ret, frame = cap.read()
+
+    # Process the frame
+    detect_aruco_marker(frame)
+
+    # Break the loop if 'q' is pressed
+    if cv.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the camera and close all windows
+cap.release()
+cv.destroyAllWindows()
+rs2 = cv.cornerSubPix(gray,corners, (11,11), (-1,-1), criteria)
         imgpoints.append(corners2)
  
         # Draw and display the corners
@@ -36,6 +94,7 @@ for fname in images:
         cv.imshow('img', img)
         cv.waitKey(500)
 ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
+
 
 def calculate_angle(marker_center, image_center):
     # Calculate the vector between the marker center and the image center
@@ -71,12 +130,13 @@ def detect_aruco_marker(frame):
             # Calculate the angle
             angle = calculate_angle(marker_center, np.array([frame.shape[1] / 2, frame.shape[0] / 2]))
             angle = angle - 90
-            # Print the angle
-            print(f"Angle with marker {ids[i][0]}: {angle} degrees")
-    
+            ang = int(angle)
+            # Print the angle in treminal and onto LCD
+            print(f"Angle with marker {ids[i][0]}: {ang} degrees")
+            LCD_funct(str(ang))
+            
     # Display the frame with the axis
     cv.imshow("Detected ArUco Marker", frame)
-
 
 cap = cv.VideoCapture(0)
 
@@ -94,4 +154,4 @@ while True:
 # Release the camera and close all windows
 cap.release()
 cv.destroyAllWindows()
-cv.destroyAllWindows()
+
