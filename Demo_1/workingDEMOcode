@@ -1,10 +1,12 @@
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 
+
+//180 and 2 ft
 const float pi = 3.14159;
 float r = 2.8; //2.875 good
 float circ = (2 * pi * r);
-float desired_feet = 1; //input in feet
+float desired_feet = 2; //input in feet
 float desired_inches = desired_feet * 12;
 
 float distance = desired_inches/ circ * 2 * pi; //revs of the wheel
@@ -13,9 +15,7 @@ float distance = desired_inches/ circ * 2 * pi; //revs of the wheel
 float robot_diameter = 15.0; //measure wheel to wheel later
 
 //angle in radian
-
-float desired_angle = 0; //input in radians 
-
+float desired_angle = pi;
 
 // State Machine States
 enum State { STOP, TURNING, MOVING };
@@ -78,34 +78,16 @@ int left_wheel;
 int right_wheel;
 
 // PI for position and speed for Vsum
-float Kp_pos = 3.3; //calibrate 4.15 is better for now
-float Ki_pos = 0.65; //calibrate 1.5/1.3
-float Kp_speed = 0.1; //calibrate 0.1/0.04
-float Ki_speed = 0.004; //calibrate 0.001/0.006
+float Kp_pos = 3.3; //3.3 for 135 turn 180 2ft; 2.3 for 3ft and 5ft AND 7FT STRAIGHT
+float Ki_pos = 0.65; //0.65 for all tests beside 5ft straight, 0.35 for 5ft, 0.05 FOR 7FT STRAIGHT
+float Kp_speed = 0.1; //0.1 for all
+float Ki_speed = 0.004; //0.004 for all
 
 // Angle for Vdelta
-float Kp_angle = 50; //calibrate 0.25/0.8/0.46 //1.8-angle error is 0.05
-float Ki_angle = 0.65; //calibrate 0.001/0.1/0.0001
-float Kp_angular_speed = 3; //calibrate 4.5/2.5  
-float Ki_angular_speed = 1; //calibrate 0.1/0.01
-
-// // PI for position and speed for Vsum
-// float Kp_pos = 3.3; //calibrate 4.15 is better for now
-// float Ki_pos = 0.65; //calibrate 1.5/1.3
-// float Kp_speed = 0.4; //calibrate 0.1/0.04
-// float Ki_speed = 0.004; //calibrate 0.001/0.006
-
-// // // // Angle for Vdelta
-// float Kp_angle = 9.3; //calibrate 0.25/0.8/0.46 //1.8-angle error is 0.05
-// float Ki_angle = 0.65; //calibrate 0.001/0.1/0.0001
-// float Kp_angular_speed = 6; //calibrate 4.5/2.5
-// float Ki_angular_speed = 0; //calibrate 0.1/0.01
-
-// // //Angle for Vdelta good for 45 degrees
-// float Kp_angle = 0.25; //calibrate
-// float Ki_angle = 0.001; //calibrate
-// float Kp_angular_speed = 4.5; //calibrate
-// float Ki_angular_speed = 0.1; //calibrate
+float Kp_angle = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
+float Ki_angle = 0.65; //
+float Kp_angular_speed = 0.5; // 
+float Ki_angular_speed = 1; //
 
 float integral_error[2] = {0.0, 0.0}; 
 float prev_error[2] = {0.0, 0.0}; 
@@ -219,8 +201,8 @@ void turnToDesiredAngle(float desired_angle) {
     Vdelta = (Kp_angular_speed * robot_angular_speed_error) + (Ki_angular_speed * integral_robot_angular_speed_error);
 
     // Adjust motor voltages based on Vdelta
-    motorVoltage[0] = Vdelta * 0.1;
-    motorVoltage[1] = -Vdelta * 0.1;
+    motorVoltage[0] = Vdelta * 0.05;  //0.05 for 135 and 2.83 ft
+    motorVoltage[1] = -Vdelta * 0.05;
 
     // Determine the direction of motor voltages and set the PWM values
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
@@ -312,8 +294,8 @@ void moveToDesiredDistance(float distance) {
     // Calculate Vsum
     Vsum = (Kp_speed * speed_error) + (Ki_speed * integral_error_speed);
 
-    motorVoltage[0] = Vsum * 0.8;
-    motorVoltage[1] = Vsum * 0.8;
+    motorVoltage[0] = Vsum * 0.8; //0.85 for 3ft straight, 0.8375 for 5ftstraight; 0.78 FOR 7FT STRAIGHT; 0.8 FOR TURN AND GO STRAIGHT*
+    motorVoltage[1] = Vsum * 0.8;//0.8 for 3ft straight, 0.79 for 5ft straight; 0.739 FT FOR 7FT STRAIGHT; 0.8 FOR TURN AND GO STRAIGHT*
 
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
