@@ -38,7 +38,7 @@ float robot_diameter = 15.0; //measure wheel to wheel later
 
 //angle in radian
 float desired_angle = pi;
-float desired_angle2 = 1.99 * pi; // this is for detection spinning
+float desired_angle2 = 2 * pi; // this is for detection spinning
 float cameraAngle;
 bool beaconDetected;
 
@@ -199,12 +199,12 @@ void setup() {
 
 void loop() {
   // Debugging: Print current state
-  //Serial.print("Current State: ");
-  //Serial.println(currentState);
+  Serial.print("Current State: ");
+  Serial.println(currentState);
 
   switch (currentState) {
     case DETECT:
-      detectBeacon(cameraAngle); // that will change to beacon detected 
+      detectBeacon(desired_angle2); // that will change to beacon detected 
       break;
     case TURNING:
       turnToDesiredAngle(desired_angle);
@@ -222,7 +222,7 @@ void loop() {
 }
 
 void detectBeacon(float desired_angle2){
-delay(1000);
+  delay(1000);
   double angleTolerance = 0.025; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error;
 
@@ -251,6 +251,8 @@ delay(1000);
     
     // Calculate the angle error
     angle_error = desired_angle2 - robot_current_heading;
+
+    //Serial.print(angle_error);
 
     // Update integral of angle error
     integral_error_angle360 += angle_error * (desired_Ts_ms / 1000.0);
@@ -288,8 +290,8 @@ delay(1000);
 
     // Delay to maintain the desired control loop timing
     delay(desired_Ts_ms);
-    Serial.print("Angle Error:");
-    Serial.println(angle_error);
+    //Serial.print("Angle Error:");
+    //Serial.println(angle_error);
     //check if the beaconDetected
     if (messageReceived[0] == 1){
        beaconDetected = 1;
@@ -569,9 +571,10 @@ void receiveEvent(int howMany) {
 
   while (Wire.available() && index < (sizeof(receivedChars) - 1)) {
     receivedChars[index++] = Wire.read();
+    Serial.println(receivedChars[index]);
+ 
   }
 
-  receivedChars[index] = '\0';
   
   messageReceived[0] = atof(receivedChars);
 
