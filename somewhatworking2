@@ -212,7 +212,7 @@ void loop() {
     case MOVING:
       moveToDesiredDistance(distance);
       break;
-      case CIRCLE:
+    case CIRCLE:
       circumNavigate(circ_distance);
       break;
     case STOP:
