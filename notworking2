@@ -11,7 +11,7 @@ volatile uint8_t offset = 0;
 volatile uint8_t instruction[32] = {0}; // Assuming a max command length of 32 for this example
 volatile uint8_t msgLength;
 float messageReceived[2]= {0.0,0.0};
-
+float ii = 0;
 //180 and 2 ft
 const float pi = 3.14159;
 
@@ -525,7 +525,7 @@ void circumNavigate(float circ_distance) {
     // Calculate Varound
     Vcirc = (Kp_speedcirc * speed_errorcirc) + (Ki_speedcirc * integral_error_speedcirc);
 
-    motorVoltage[0] = Vcirc * 0.4; //braeden's value
+    motorVoltage[0] = Vcirc * 0.4; 
     motorVoltage[1] = Vcirc * 0.11;
 
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
@@ -568,17 +568,24 @@ void receiveEvent(int howMany) {
   // Read data while available
   char receivedChars[32];
   int index = 0;
-
+  ii = Wire.read();
   while (Wire.available() && index < (sizeof(receivedChars) - 1)) {
     receivedChars[index++] = Wire.read();
-    Serial.println(receivedChars[index]);
+    Serial.println(receivedChars[index - 1]);
  
   }
 
-  
-  messageReceived[0] = atof(receivedChars);
+  receivedChars[index] = '\0';
 
-  Serial.print("Received float: ");
+  char *ptr;
+  
+  messageReceived[0] = strtod(receivedChars, &ptr);
+  if (ptr != NULL){
+    messageReceived[1] = strtod(ptr, NULL);
+  }
+  Serial.print("Received float 1: ");
   Serial.println(messageReceived[0]);
+  Serial.print("Received float 2: ");
+  Serial.println(messageReceived[1]);
 
 }
