@@ -39,6 +39,7 @@ float robot_diameter = 15.0; //measure wheel to wheel later
 //angle in radian
 float desired_angle = pi;
 float desired_angle2 = 2 * pi; // this is for detection spinning
+float desired_angle3;
 float cameraAngle;
 bool beaconDetected;
 
@@ -153,8 +154,8 @@ float integral_robot_angular_speed_error360;
 // Angle for V360
 float Kp_angle360 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle360 = 0.65; //
-float Kp_angular_speed360 = 0.5; // 
-float Ki_angular_speed360 = 1; //
+float Kp_angular_speed360 = 0.4; // 
+float Ki_angular_speed360 = 0.3; //
 
 // V180
 float V180;
@@ -207,7 +208,7 @@ void loop() {
       detectBeacon(desired_angle2); // that will change to beacon detected 
       break;
     case TURNING:
-      turnToDesiredAngle(desired_angle);
+      turnToDesiredAngle(desired_angle3);
       break;
     case MOVING:
       moveToDesiredDistance(distance);
@@ -273,8 +274,8 @@ void detectBeacon(float desired_angle2){
     V360 = (Kp_angular_speed360 * robot_angular_speed_error360) + (Ki_angular_speed360 * integral_robot_angular_speed_error360);
 
     // Adjust motor voltages based on Vdelta
-    motorVoltage[0] = V360 * 0.0007;  //0.05 for 135 and 2.83 ft
-    motorVoltage[1] = -V360 * 0.0007;
+    motorVoltage[0] = V360 * 0.0004;  //0.05 for 135 and 2.83 ft
+    motorVoltage[1] = -V360 * 0.0004;
 
     // Determine the direction of motor voltages and set the PWM values
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
@@ -304,16 +305,27 @@ void detectBeacon(float desired_angle2){
     analogWrite(motorPin[1], 0);
     analogWrite(motorPin[0], 0);
 
+desired_angle3 = messageReceived[1];
     //delay(10);
     //need message from the PI with the angle
-    desired_angle = messageReceived[1];
+   // desired_angle3 = messageReceived[1];
+    //if (desired_angle <= (pi/2)){
+    //while (desired_angle3 <= (pi/2)){
+      //desired_angle3 = desired_angle3 - (pi/2);
+    //}
+    }
+    else desired_angle3 = desired_angle - (pi);
+
+
     currentState = TURNING;
     return;
   }
-}
-void turnToDesiredAngle(float desired_angle) {
+
+
+
+void turnToDesiredAngle(float desired_angle3) {
   delay(1000);
-  double angleTolerance = 0.025; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angleTolerance = 0.5; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error;
 
   do {
@@ -340,7 +352,7 @@ void turnToDesiredAngle(float desired_angle) {
     robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_180;
     
     // Calculate the angle error
-    angle_error = desired_angle - robot_current_heading;
+    angle_error = desired_angle3 - robot_current_heading;
 
     // Update integral of angle error
     integral_error_angle180 += angle_error * (desired_Ts_ms / 1000.0);
@@ -393,7 +405,7 @@ void turnToDesiredAngle(float desired_angle) {
 }
 
 void moveToDesiredDistance(float distance) { //distance will always be 7ft
-  delay(1000);
+  delay(500);
   //Serial.println("In Desired Distance function");
   Serial.println(distance);
   double distanceTolerance = 0.5;
@@ -475,11 +487,14 @@ last_time_ms = millis();
 }
 
 void circumNavigate(float circ_distance) {
-  delay(1000);
+  delay(500);
   //Serial.println("In Desired Distance function");
   Serial.println(circ_distance);
   double distanceTolerance = 0.5;
   double position_errorcirc;
+
+  motor1.write(0);
+  motor2.write(0);
 
   // Assume other necessary variables and constants like Kp_pos, Ki_pos, etc., are declared globally
 
