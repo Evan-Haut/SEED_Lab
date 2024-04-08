@@ -165,10 +165,10 @@ float robot_angular_speed180;
 float robot_angular_speed_error180;
 float integral_robot_angular_speed_error180;
 
-// Angle for V360
+// Angle for V180
 float Kp_angle180 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle180 = 0.65; //
-float Kp_angular_speed180 = 0.5; // 
+float Kp_angular_speed180 = 0.5; //0.5 
 float Ki_angular_speed180 = 1; //
 
 
@@ -305,7 +305,7 @@ void detectBeacon(float desired_angle2){
     analogWrite(motorPin[1], 0);
     analogWrite(motorPin[0], 0);
 
-desired_angle3 = messageReceived[1];
+desired_angle3 = messageReceived[1] + (pi/2) + 0.174533;
     //delay(10);
     //need message from the PI with the angle
    // desired_angle3 = messageReceived[1];
@@ -325,7 +325,7 @@ desired_angle3 = messageReceived[1];
 
 void turnToDesiredAngle(float desired_angle3) {
   delay(1000);
-  double angleTolerance = 0.5; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angleTolerance = 1.0; // 5.0 // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error;
 
   do {
@@ -352,7 +352,15 @@ void turnToDesiredAngle(float desired_angle3) {
     robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_180;
     
     // Calculate the angle error
+
+
+    
     angle_error = desired_angle3 - robot_current_heading;
+
+    //angle_error = -desired_angle3 - robot_current_heading;
+
+
+
 
     // Update integral of angle error
     integral_error_angle180 += angle_error * (desired_Ts_ms / 1000.0);
@@ -373,8 +381,12 @@ void turnToDesiredAngle(float desired_angle3) {
     V180 = (Kp_angular_speed180 * robot_angular_speed_error180) + (Ki_angular_speed180 * integral_robot_angular_speed_error180);
 
     // Adjust motor voltages based on Vdelta
-    motorVoltage[0] = V180 * 0.04;  //0.05 for 135 and 2.83 ft
-    motorVoltage[1] = -V180 * 0.04;
+//    motorVoltage[0] = V180 * 0.04;  //0.05 for 135 and 2.83 ft
+//    motorVoltage[1] = -V180 * 0.04;
+
+    // Adjust motor voltages based on Vdelta
+      motorVoltage[0] = V180 * 0.04;  //0.05 for 135 and 2.83 ft
+      motorVoltage[1] = -V180 * 0.04;
 
     // Determine the direction of motor voltages and set the PWM values
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
