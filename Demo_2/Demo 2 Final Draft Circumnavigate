@@ -59,8 +59,6 @@ float batteryVoltage = 7.8;
 float error[2]; 
 float PWM[2]; 
 
-//Constant
-
 
 //Encoder left and right 
 Encoder motor1(2, 5); 
@@ -105,11 +103,12 @@ int right_wheel;
 
 float integral_error[2] = {0.0, 0.0}; 
 float prev_error[2] = {0.0, 0.0}; 
+
 // Variables for calculating position
 long pos_counts[2];
 float pos_rad[2];
 
-//V7ft
+// V7ft Declarations
 float V7ft;
 float position_error7ft;
 float desired_speed7ft;
@@ -126,7 +125,7 @@ float Ki_pos7ft = 0.05; //0.65 for all tests beside 5ft straight, 0.35 for 5ft, 
 float Kp_speed7ft = 0.1; //0.1 for all
 float Ki_speed7ft = 0.001; //0.004 for all
 
-//Vcirc
+// Vcirc Declarations
 float Vcirc;
 float position_errorcirc;
 float desired_speedcirc;
@@ -143,7 +142,7 @@ float Kp_speedcirc = 0.1; //0.1 for all
 float Ki_speedcirc = 0.001; //0.004 for all
 
 
-//V360
+// V360 Declarations
 float V360;
 float integral_error_angle360;
 float angular_speed360;
@@ -151,13 +150,13 @@ float robot_angular_speed360;
 float robot_angular_speed_error360;
 float integral_robot_angular_speed_error360;
 
-// Angle for V360
+// PI for V360
 float Kp_angle360 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle360 = 0.65; //
 float Kp_angular_speed360 = 0.4; // 
 float Ki_angular_speed360 = 0.3; //
 
-// V180
+// V180 Declarations
 float V180;
 float integral_error_angle180;
 float angular_speed180;
@@ -165,14 +164,11 @@ float robot_angular_speed180;
 float robot_angular_speed_error180;
 float integral_robot_angular_speed_error180;
 
-// Angle for V180
+// PI for V180
 float Kp_angle180 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle180 = 0.65; //
 float Kp_angular_speed180 = 0.5; //0.5 
 float Ki_angular_speed180 = 1; //
-
-
-
 
 void setup() {
   //comm figure out the baud rate
@@ -205,7 +201,7 @@ void loop() {
 
   switch (currentState) {
     case DETECT:
-      detectBeacon(desired_angle2); // that will change to beacon detected 
+      detectBeacon(desired_angle2); 
       break;
     case TURNING:
       turnToDesiredAngle(desired_angle3);
@@ -352,15 +348,8 @@ void turnToDesiredAngle(float desired_angle3) {
     robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_180;
     
     // Calculate the angle error
-
-
-    
     angle_error = desired_angle3 - robot_current_heading;
-
     //angle_error = -desired_angle3 - robot_current_heading;
-
-
-
 
     // Update integral of angle error
     integral_error_angle180 += angle_error * (desired_Ts_ms / 1000.0);
@@ -423,9 +412,6 @@ void moveToDesiredDistance(float distance) { //distance will always be 7ft
   double distanceTolerance = 0.5;
   double position_error7ft;
 
-  // Assume other necessary variables and constants like Kp_pos, Ki_pos, etc., are declared globally
-
-
   do{
     pos_counts[0] = motor1.read();
     pos_counts[1] = -motor2.read();
@@ -467,8 +453,8 @@ void moveToDesiredDistance(float distance) { //distance will always be 7ft
     // Calculate Vsum
     V7ft = (Kp_speed7ft * speed_error7ft) + (Ki_speed7ft * integral_error_speed7ft);
 
-    motorVoltage[0] = V7ft * 0.795; //0.85 for 3ft straight, 0.8375 for 5ftstraight; 0.78 FOR 7FT STRAIGHT; 0.8 FOR TURN AND GO STRAIGHT*
-    motorVoltage[1] = V7ft * 0.739;//0.8 for 3ft straight, 0.79 for 5ft straight; 0.739 FT FOR 7FT STRAIGHT; 0.8 FOR TURN AND GO STRAIGHT*
+    motorVoltage[0] = V7ft * 0.795;
+    motorVoltage[1] = V7ft * 0.739;
 
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
@@ -507,9 +493,6 @@ void circumNavigate(float circ_distance) {
 
   motor1.write(0);
   motor2.write(0);
-
-  // Assume other necessary variables and constants like Kp_pos, Ki_pos, etc., are declared globally
-
 
   do{
     pos_counts[0] = motor1.read();
