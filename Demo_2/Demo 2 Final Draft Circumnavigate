@@ -26,7 +26,7 @@ float r_360 = 2.96;
 float circ = 2 * pi * r_circ;
 float desired_feetcirc = 2 * PI * 1.1; //input in feet
 float desired_inchescirc = desired_feetcirc * 12;
-float circ_distance = desired_inchescirc / circ * 2 * pi; //1.35 is the fudge value
+float circ_distance = desired_inchescirc / circ * 2 * pi; 
 
 
 //straight line
