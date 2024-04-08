@@ -5,9 +5,10 @@ import board
 from smbus2 import SMBus
 from threading import Thread
 from cv2 import aruco
-#import adafruit_character_lcd.character_lcd_rgb_i2c as character_lcd
 import math
 import time
+
+#define constants
 mtx1=[567.72602969, 0, 313.44143064]
 mtx2=[0,567.16356923,233.64730096]
 mtx3 = [0,0,1]
@@ -15,14 +16,13 @@ mtx = np.array([mtx1,mtx2,mtx3])
 dist = np.array([0.26660512, -0.86434186, -0.00534246,  0.01027815,  1.58472904])
 marker_size = 100
 i2c = SMBus(1)
-i4c = board.I2C()
+
+#function to send the message to arduino
 def send_message(message):
     message = [ord(character) for character in message]
     i2c.write_i2c_block_data(8,0, message)
 
-#def LCD_funct(a):
-    #lcd.message = a
-#threading function
+#function to detect aruco marker
 def detect_aruco_marker(frame):
     # Convert the frame to grayscale
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
@@ -49,24 +49,14 @@ def detect_aruco_marker(frame):
                 distance = tvec[0,0,2]
                 angle = calculate_angle(markercenterx,centerx,distance)
                 return float(angle)
-                           
-                
-        
-        
-            # Print the angle in treminal and onto LCD
-        #print(f"Angle with marker {ids[i][0]}: {angle} degrees")
-        #LCD_funct(str(angle))
             
     # Display the frame with the axis
     cv.imshow("Detected ArUco Marker", frame)
+#threading initilization
 x = Thread(target = detect_aruco_marker, args = (1,), daemon = True)
 y = Thread(target = send_message, args = (1,), daemon = True)
 x.start
 y.start
-#I2c info
-#LCD funct.
-#lcd = character_lcd.Character_LCD_RGB_I2C(i4c, 2, 16)
-#lcd.clear
 
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -79,15 +69,6 @@ objp[:,:2] = np.mgrid[0:10,0:7].T.reshape(-1,2)
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
  
-#initialize threading
-
-#x = Thread(target=LCD_funct, args = (1,), daemon = True)
-
-#x.start
-
-
-print(mtx)
-print(dist)
 
 def calculate_angle(marker_center, image_center, distance):
     # Calculate the vector between the marker center and the image center
@@ -142,7 +123,7 @@ def detect_aruco_marker(frame):
 
 cap = cv.VideoCapture(0)
 
-
+#main loop
 while True:
     ret, frame = cap.read()
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
@@ -157,8 +138,9 @@ while True:
     corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
     image = cv.aruco.drawDetectedMarkers(frame,corners,ids)
     cv.imshow("Detected ArUco Marker", frame)
-    #LCD_funct("Scanning...")
+ 
     if ids is not None:
+        #send that it has been detected, wait 5 seconds and then report correction angle
         send_message("1")
         #lcd.clear()
         time.sleep(5)
