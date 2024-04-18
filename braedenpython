@@ -3,7 +3,7 @@ import cv2 as cv
 from smbus2 import SMBus
 from threading import Thread
 
-# Define constants for camera calibration
+# Constants for camera calibration
 mtx = np.array([[567.72602969, 0, 313.44143064], 
                 [0, 567.16356923, 233.64730096], 
                 [0, 0, 1]])
@@ -41,9 +41,9 @@ def detect_aruco_marker():
         print("Error: Camera could not be opened.")
         return
 
-    # Define ArUco dictionary and create DetectorParameters object
+    # Define ArUco dictionary and parameters
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-    parameters = cv.aruco.DetectorParameters_create()
+    parameters = cv.aruco.DetectorParameters()  # Directly use DetectorParameters
 
     try:
         detection_sent = False  # Local variable to ensure we only send the detection message once
