@@ -1,13 +1,10 @@
 import numpy as np
 import cv2 as cv
-import glob
-import board
 from smbus2 import SMBus
 from threading import Thread
-import math
 import time
 
-# Define camera calibration constants
+# Define constants for camera calibration
 mtx1 = [567.72602969, 0, 313.44143064]
 mtx2 = [0, 567.16356923, 233.64730096]
 mtx3 = [0, 0, 1]
@@ -19,6 +16,7 @@ marker_size = 100
 i2c = SMBus(1)
 arduino_address = 8
 
+# Function to send the message to Arduino
 def send_message(message_type, value=None):
     if message_type == 'detect':
         message_bytes = [ord('D')]  # 'D' for detection
@@ -27,45 +25,56 @@ def send_message(message_type, value=None):
         message_bytes = [ord('A')] + [ord(char) for char in angle_str] + [ord('\n')]
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
 
+# Function to calculate the angle between the marker and camera axis
 def calculate_angle(marker_center, image_center, distance):
     vector_to_marker = marker_center - image_center
     angle = np.arctan2(vector_to_marker, distance) * (180 / np.pi)
     return float(angle)
 
+# Function to detect ArUco marker
 def detect_aruco_marker():
     cap = cv.VideoCapture(0)
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Failed to grab frame")
-            break
+    # Check if the camera opened successfully
+    if not cap.isOpened():
+        print("Error: Camera could not be opened.")
+        return
 
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-        parameters = cv.aruco.DetectorParameters_create()
-        corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Can't receive frame (stream end?). Exiting ...")
+                break
 
-        if np.any(ids):
-            send_message('detect')  # Send detection confirmation
-            time.sleep(5)  # Wait for Arduino to process detection
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+            aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
+            parameters = cv.aruco.DetectorParameters_create()
+            corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-            rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
-            frame = cv.aruco.drawDetectedMarkers(frame, corners, ids)
+            if np.any(ids):
+                send_message('detect')  # Send detection confirmation
+                time.sleep(0.5)  # Wait for Arduino to process detection
+
+                rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
+                frame = cv.aruco.drawDetectedMarkers(frame, corners, ids)
+
+                if len(tvec) > 0:
+                    xsum = np.sum(corners[0][0][:, 0])
+                    marker_center_x = xsum / 4
+                    center_x = frame.shape[1] // 2
+                    angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
+                    send_message('angle', angle)
+
             cv.imshow("Detected ArUco Marker", frame)
 
-            if len(tvec) > 0:
-                xsum = np.sum(corners[0][0][:, 0])
-                marker_center_x = xsum / 4
-                center_x = frame.shape[1] // 2
-                angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
-                send_message('angle', angle)
-
-        if cv.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv.destroyAllWindows()
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                break
+    except Exception as e:
+        print(f"An exception occurred: {e}")
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
 
 # Main thread to start ArUco detection
 thread = Thread(target=detect_aruco_marker, daemon=True)
