@@ -3,77 +3,94 @@ import cv2 as cv
 from smbus2 import SMBus
 from threading import Thread
 
-# Constants for camera calibration
-mtx = np.array([[567.72602969, 0, 313.44143064],
-                [0, 567.16356923, 233.64730096],
+# Define constants for camera calibration
+mtx = np.array([[567.72602969, 0, 313.44143064], 
+                [0, 567.16356923, 233.64730096], 
                 [0, 0, 1]])
 dist = np.array([0.26660512, -0.86434186, -0.00534246, 0.01027815, 1.58472904])
-marker_size = 0.1  # Actual marker size in meters
+marker_size = 0.1  # Actual marker size in meters (Update this value accordingly)
 
 # Initialize I2C communication
 i2c = SMBus(1)
 arduino_address = 8
-message_sent = False  # State variable to track if the message has been sent
+angle_message_sent = False  # State variable to track if the angle message has been sent
 
+# Function to send a message to Arduino
 def send_message(message_type, value=None):
     if message_type == 'detect':
-        message_bytes = [1]  # Send '1' for detection
+        message_bytes = [1]  # Sending '1' when marker is detected
     elif message_type == 'angle':
-        angle_str = f"{int(value)}"
+        angle_str = str(int(value))  # Convert angle to integer and then to string
         message_bytes = [ord('A')] + [ord(char) for char in angle_str] + [ord('\n')]
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
     print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
 
-def calculate_angle(marker_center, image_center, z_distance):
+# Function to calculate the angle
+def calculate_angle(marker_center, image_center, distance):
     dx = marker_center - image_center
-    angle = np.arctan2(dx, z_distance) * (180 / np.pi)  # Convert radian to degrees
-    return float(angle)
+    angle = np.arctan2(dx, distance) * (180 / np.pi)  # Convert from radians to degrees
+    return angle
 
+# Function to detect ArUco markers and send only one angle message
 def detect_aruco_marker():
-    global message_sent
+    global angle_message_sent
     cap = cv.VideoCapture(0)
 
+    # Check if the camera opened successfully
     if not cap.isOpened():
         print("Error: Camera could not be opened.")
         return
 
+    # Define ArUco dictionary and parameters
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
     parameters = cv.aruco.DetectorParameters()
 
-    detection_sent = False
     try:
+        detection_sent = False  # Local variable to ensure we only send the detection message once
         while True:
             ret, frame = cap.read()
             if not ret:
                 print("Error: Can't receive frame (stream end?). Exiting ...")
                 break
 
+            # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
 
             if ids is not None and not detection_sent:
                 # Detected the marker, send detection message once
+                print("ArUco marker detected!")
                 send_message('detect')
-                detection_sent = True
+                detection_sent = True  # Prevent sending the detection message again
 
-            if ids is not None and detection_sent and not message_sent:
-                # Calculate and send the angle once
+            if ids is not None and detection_sent and not angle_message_sent:
+                # Detected the marker again, calculate and send the angle message once
                 rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
                 if tvec is not None and len(tvec) > 0:
                     xsum = np.sum(corners[0][0][:, 0])
+                    ysum = np.sum(corners[0][0][:, 1])
                     marker_center_x = xsum / 4
+                    marker_center_y = ysum / 4
                     center_x = frame.shape[1] // 2
+                    center_y = frame.shape[0] // 2
                     angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
+                    print(f"Sending angle: {angle}")
                     send_message('angle', angle)
-                    message_sent = True  # Prevent further angle messages
+                    angle_message_sent = True  # Prevent sending the angle message again
 
+            # Show the frame with detected ArUco marker
             cv.imshow("Detected ArUco Marker", frame)
+
+            # Break the loop if 'q' is pressed
             if cv.waitKey(1) & 0xFF == ord('q'):
+                print("Quitting...")
                 break
     finally:
+        # Release the camera and close all windows
         cap.release()
         cv.destroyAllWindows()
 
+# Start the ArUco detection in a separate thread
 thread = Thread(target=detect_aruco_marker, daemon=True)
 thread.start()
 thread.join()
