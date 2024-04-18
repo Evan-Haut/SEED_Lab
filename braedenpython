@@ -24,6 +24,7 @@ def send_message(message_type, value=None):
         angle_str = str(value)
         message_bytes = [ord('A')] + [ord(char) for char in angle_str] + [ord('\n')]
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
+    print("Sent: ", message_type, " ", "Value: ", value)
 
 # Function to calculate the angle between the marker and camera axis
 def calculate_angle(marker_center, image_center, distance):
@@ -49,12 +50,12 @@ def detect_aruco_marker():
 
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-            parameters = cv.aruco.DetectorParameters_create()
+            parameters = cv.aruco.DetectorParameters()  # Changed here
             corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
             if np.any(ids):
                 send_message('detect')  # Send detection confirmation
-                time.sleep(0.5)  # Wait for Arduino to process detection
+                time.sleep(0.1)  # Short wait for Arduino to process detection
 
                 rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
                 frame = cv.aruco.drawDetectedMarkers(frame, corners, ids)
@@ -64,6 +65,7 @@ def detect_aruco_marker():
                     marker_center_x = xsum / 4
                     center_x = frame.shape[1] // 2
                     angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
+                    print("Calculated Angle: ", angle)
                     send_message('angle', angle)
 
             cv.imshow("Detected ArUco Marker", frame)
