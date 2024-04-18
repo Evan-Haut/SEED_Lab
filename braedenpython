@@ -51,13 +51,9 @@ def detect_aruco_marker():
 
             # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            try:
-                # Detect ArUco markers
-                corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
-            except cv.error as e:
-                # Print OpenCV error
-                print(f"OpenCV error: {e}")
-                continue
+            
+            # Detect ArUco markers
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
 
             if ids is not None and not stop_message_sent:
                 print("ArUco marker detected! Sending stop signal.")
@@ -90,4 +86,3 @@ def detect_aruco_marker():
 thread = Thread(target=detect_aruco_marker, daemon=True)
 thread.start()
 thread.join()
-
