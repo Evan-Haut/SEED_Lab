@@ -2,7 +2,6 @@ import numpy as np
 import cv2 as cv
 from smbus2 import SMBus
 from threading import Thread
-import time
 
 # Constants for camera calibration and ArUco detection
 mtx = np.array([[567.72602969, 0, 313.44143064],
@@ -39,7 +38,6 @@ def detect_aruco_marker():
         print("Error: Camera could not be opened.")
         return
 
-    # Define ArUco dictionary and parameters
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
     parameters = cv.aruco.DetectorParameters()
 
@@ -50,28 +48,23 @@ def detect_aruco_marker():
                 print("Error: Can't receive frame (stream end?). Exiting ...")
                 break
 
-            # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
 
             if ids is not None and not stop_message_sent:
-                # Detected the marker for the first time
-                print("ArUco marker detected! Sending stop signal.")
+                print("ArUco marker detected!")
                 send_message('detect')
-                stop_message_sent = True  # Set the flag to True after sending stop message
+                stop_message_sent = True
 
             elif ids is not None and stop_message_sent:
-                # Detected the marker and already sent the stop signal
                 rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
                 if tvec is not None and len(tvec) > 0:
-                    # Calculate the angle and send it
-                    xsum = np.sum(corners[0][0][:, 0])
-                    marker_center_x = xsum / 4
+                    marker_center_x = np.mean(corners[0][0][:, 0])
                     center_x = frame.shape[1] // 2
                     angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
-                    print(f"ArUco marker detected at angle: {angle}. Sending angle.")
+                    print("Calculated Angle: ", angle)
                     send_message('angle', angle)
-                    break  # Exit after sending the angle
+                    break
 
             cv.imshow("Frame", frame)
 
