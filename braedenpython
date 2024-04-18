@@ -4,8 +4,8 @@ from smbus2 import SMBus
 from threading import Thread
 
 # Constants for camera calibration
-mtx = np.array([[567.72602969, 0, 313.44143064], 
-                [0, 567.16356923, 233.64730096], 
+mtx = np.array([[567.72602969, 0, 313.44143064],
+                [0, 567.16356923, 233.64730096],
                 [0, 0, 1]])
 dist = np.array([0.26660512, -0.86434186, -0.00534246, 0.01027815, 1.58472904])
 marker_size = 0.1  # Actual marker size in meters (Update this value accordingly)
@@ -41,9 +41,8 @@ def detect_aruco_marker():
         print("Error: Camera could not be opened.")
         return
 
-    # Define ArUco dictionary and parameters
-    aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-    parameters = cv.aruco.DetectorParameters()  # Directly use DetectorParameters
+    # Define ArUco dictionary
+    aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_6X6_250)  # Change dictionary if needed
 
     try:
         detection_sent = False  # Local variable to ensure we only send the detection message once
@@ -55,7 +54,7 @@ def detect_aruco_marker():
 
             # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict)  # Call without parameters for now
 
             if ids is not None and not detection_sent:
                 # Detected the marker, send detection message once
