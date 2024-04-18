@@ -1,44 +1,77 @@
 import numpy as np
 import cv2 as cv
+from smbus2 import SMBus
+from threading import Thread
+import time
 
-# Constants for camera calibration and ArUco detection
+# Constants for camera calibration
 mtx = np.array([[567.72602969, 0, 313.44143064],
                 [0, 567.16356923, 233.64730096],
                 [0, 0, 1]])
 dist = np.array([0.26660512, -0.86434186, -0.00534246, 0.01027815, 1.58472904])
 marker_size = 0.1  # Actual marker size in meters
 
-# Initialize camera
-cap = cv.VideoCapture(0)
+# Initialize I2C communication
+i2c = SMBus(1)
+arduino_address = 8
+angle_message_sent = False  # Prevents sending the angle more than once
 
-# Check if the camera opened successfully
-if not cap.isOpened():
-    print("Error: Camera could not be opened.")
-else:
-    # Define ArUco dictionary and parameters
+def send_message(message_type, value=None):
+    if message_type == 'detect':
+        message_bytes = [1]  # Sending '1' when detected
+    elif message_type == 'angle':
+        angle_str = f"{int(value)}"
+        message_bytes = [ord('A')] + [ord(char) for char in angle_str] + [ord('\n')]
+    i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
+    print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
+
+def calculate_angle(marker_center, image_center, distance):
+    vector_to_marker = marker_center - image_center
+    angle = np.arctan2(vector_to_marker, distance) * (180 / np.pi)
+    return float(angle)
+
+def detect_aruco_marker():
+    global angle_message_sent
+    cap = cv.VideoCapture(0)
+
+    if not cap.isOpened():
+        print("Error: Camera could not be opened.")
+        return
+
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-    parameters = cv.aruco.DetectorParameters_create()
+    parameters = cv.aruco.DetectorParameters()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Can't receive frame (stream end?). Exiting ...")
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Can't receive frame (stream end?). Exiting ...")
+                break
 
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-        
-        if ids is not None:
-            frame = cv.aruco.drawDetectedMarkers(frame, corners, ids)
-            rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
-            for i in range(len(ids)):
-                cv.aruco.drawAxis(frame, mtx, dist, rvec[i], tvec[i], 0.1)
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
 
-        cv.imshow("Detected ArUco Marker", frame)
+            if ids is not None and not angle_message_sent:
+                print("ArUco marker detected!")
+                send_message('detect')
+                rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
+                if tvec is not None and len(tvec) > 0:
+                    xsum = np.sum(corners[0][0][:, 0])
+                    marker_center_x = xsum / 4
+                    center_x = frame.shape[1] // 2
+                    angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
+                    print(f"Sending angle: {angle}")
+                    send_message('angle', angle)
+                    angle_message_sent = True  # Prevent further angle messages
 
-        if cv.waitKey(1) & 0xFF == ord('q'):
-            print("Quitting...")
-            break
+            cv.imshow("Detected ArUco Marker", frame)
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                print("Quitting...")
+                break
+    finally:
+        cap.release()
+        cv.destroyAllWindows()
 
-    cap.release()
-    cv.destroyAllWindows()
+thread = Thread(target=detect_aruco_marker, daemon=True)
+thread.start()
+thread.join()
