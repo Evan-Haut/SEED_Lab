@@ -4,44 +4,41 @@ from smbus2 import SMBus
 from threading import Thread
 import time
 
-# Define constants for camera calibration
-mtx = np.array([[567.72602969, 0, 313.44143064], [0, 567.16356923, 233.64730096], [0, 0, 1]])
+# Constants for camera calibration
+mtx = np.array([[567.72602969, 0, 313.44143064],
+                [0, 567.16356923, 233.64730096],
+                [0, 0, 1]])
 dist = np.array([0.26660512, -0.86434186, -0.00534246, 0.01027815, 1.58472904])
-marker_size = 0.1  # Update this with your actual marker size in meters
+marker_size = 0.1  # Update this with the actual marker size in meters
 
-# Initialize I2C communication
+# I2C communication
 i2c = SMBus(1)
 arduino_address = 8
+stop_message_sent = False
 
-# Function to send a message to Arduino
+# Function to send a message to the Arduino
 def send_message(message_type, value=None):
-    if message_type == 'detect':
-        message_bytes = [ord('D')]  # 'D' for detection
-    elif message_type == 'angle':
-        angle_str = str(value)
-        message_bytes = [ord('A')] + [ord(char) for char in angle_str] + [ord('\n')]
+    message_str = 'D' if message_type == 'detect' else f'A{value}'
+    message_bytes = [ord(char) for char in message_str] + [ord('\n')]
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
-    print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
+    print(f"Sent: {'Stop signal' if message_type == 'detect' else f'Angle: {value}'}")
 
 # Function to calculate the angle
 def calculate_angle(marker_center, image_center, distance):
     vector_to_marker = marker_center - image_center
     angle = np.arctan2(vector_to_marker, distance) * (180 / np.pi)
-    print("Calculated Angle: ", angle)
     return float(angle)
 
-# Function to detect ArUco markers
+# Function to detect ArUco marker and send messages
 def detect_aruco_marker():
+    global stop_message_sent
     cap = cv.VideoCapture(0)
-
-    # Check if the camera opened successfully
     if not cap.isOpened():
         print("Error: Camera could not be opened.")
         return
 
-    # Define ArUco dictionary and parameters
     aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_50)
-    parameters = cv.aruco.DetectorParameters()
+    parameters = cv.aruco.DetectorParameters_create()
 
     try:
         while True:
@@ -50,40 +47,31 @@ def detect_aruco_marker():
                 print("Error: Can't receive frame (stream end?). Exiting ...")
                 break
 
-            # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+            corners, ids, _ = cv.aruco.detectMarkers(gray, aruco_dict, parameters)
 
-            if ids is not None:
-                # Detected the marker
-                print("ArUco marker detected!")
+            if ids is not None and not stop_message_sent:
                 send_message('detect')
+                stop_message_sent = True
 
+            elif ids is not None and stop_message_sent:
                 rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
-                frame = cv.aruco.drawDetectedMarkers(frame, corners, ids)
-                
-                # Calculate and send angle if we have valid tvec
                 if tvec is not None and len(tvec) > 0:
                     xsum = np.sum(corners[0][0][:, 0])
                     marker_center_x = xsum / 4
                     center_x = frame.shape[1] // 2
                     angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
                     send_message('angle', angle)
+                    break  # Stop after sending the angle
 
-            cv.imshow("Detected ArUco Marker", frame)
-
-            # Break the loop if 'q' is pressed
+            cv.imshow("Frame", frame)
             if cv.waitKey(1) & 0xFF == ord('q'):
-                print("Quitting...")
                 break
-    except Exception as e:
-        print(f"An exception occurred: {e}")
     finally:
-        # Release the camera and close the window
         cap.release()
         cv.destroyAllWindows()
 
-# Start the ArUco detection in a separate thread
+# Start the ArUco detection thread
 thread = Thread(target=detect_aruco_marker, daemon=True)
 thread.start()
 thread.join()
