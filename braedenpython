@@ -91,4 +91,5 @@ def detect_aruco_marker():
 
 # Start the ArUco detection in a separate thread
 thread = Thread(target=detect_aruco_marker, daemon=True)
-thread
+thread.start()
+thread.join()
