@@ -42,7 +42,7 @@ def detect_aruco_marker():
         return
 
     # Define ArUco dictionary
-    aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_6X6_250)  # Corrected
+    aruco_dict = cv.aruco.DICT_6X6_250  # Use the dictionary directly
 
     try:
         detection_sent = False  # Local variable to ensure we only send the detection message once
@@ -54,7 +54,7 @@ def detect_aruco_marker():
 
             # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict)  # Call without parameters for now
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, cv.aruco.getPredefinedDictionary(aruco_dict))
 
             if ids is not None and not detection_sent:
                 # Detected the marker, send detection message once
