@@ -42,7 +42,7 @@ def detect_aruco_marker():
         return
 
     # Define ArUco dictionary
-    aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_6X6_250)  # Change dictionary if needed
+    aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_6X6_250)  # Corrected
 
     try:
         detection_sent = False  # Local variable to ensure we only send the detection message once
@@ -91,5 +91,4 @@ def detect_aruco_marker():
 
 # Start the ArUco detection in a separate thread
 thread = Thread(target=detect_aruco_marker, daemon=True)
-thread.start()
-thread.join()
+thread
