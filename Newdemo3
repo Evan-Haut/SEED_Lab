@@ -303,12 +303,11 @@ void detectBeacon(float desired_angle2){
     delay(desired_Ts_ms);
 
     // Check beaconDetected condition
-    if (beaconDetected) {
-      break;  // Break the loop if beacon is detected
-    }
+
   } while (true); // Continue looping until beacon is detected
 
   if (beaconDetected) {
+    Serial.println("Beacon detected");
     analogWrite(motorPin[1], 0);
     analogWrite(motorPin[0], 0);
     
@@ -654,7 +653,7 @@ void stopMotors(){
 void receiveEvent(int howMany) {
     static char receivedChars[32];
     static int index = 0;
-    static int charsToIgnore = 3; // Number of characters to ignore at the beginning
+    static int charsToIgnore = 4; // Number of characters to ignore at the beginning
 
     while (Wire.available()) {
         char c = Wire.read(); // Read a character from the I2C buffer
@@ -696,8 +695,8 @@ void processCompleteMessage(char* message) {
     Serial.print(message);
     Serial.println("'");
 
-    // Check if the message is at least 3 characters long ("1,\n")
-    if (strlen(message) < 3) { 
+    // Check if the message is at least 2 characters long ("1\n")
+    if (strlen(message) < 2) { 
         Serial.println("Error: Received message is incomplete or corrupted.");
         return; // Exit the function if the message is too short
     }
@@ -706,20 +705,17 @@ void processCompleteMessage(char* message) {
     if (message[0] == '1') {
         beaconDetected = true;
 
-        // Find the comma position in the message
-        char* commaPosition = strchr(message, ',');
-        if (commaPosition != NULL) {
-            // Parse the angle value after the comma
-            float angleDegrees = atof(commaPosition + 1);
-            cameraAngle = angleDegrees * (PI / 180.0); // Convert to radians
-            
-            // Print the angle for debugging purposes
-            Serial.print("Beacon Detected: Yes\nAngle Received in Radians: ");
-            Serial.println(cameraAngle);
-        } else {
-            // If there's no comma, the message is not in the correct format
-            Serial.println("Error: Message does not contain a comma separator.");
-        }
+        // Assuming the message is structured as "1ANGLE_VALUE", where ANGLE_VALUE is directly after '1'
+        float angleDegrees = atof(message + 1); // Convert the angle value to float
+        cameraAngle = angleDegrees * (PI / 180.0); // Convert to radians
+
+        // Print the angle for debugging purposes
+        Serial.print("Beacon Detected: Yes\nAngle Received in Radians: ");
+        Serial.println(cameraAngle);
+
+        // Ensure that the state is updated to exit the loop in detectBeacon
+        currentState = TURNING; // Move this here to ensure the state changes
+        Serial.println("State Changed to TURNING");
     } else {
         // If the first character is not '1', assume no beacon is detected
         beaconDetected = false;
