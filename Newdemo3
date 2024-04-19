@@ -17,10 +17,10 @@ const float pi = 3.14159;
 
 //radius
 float r_circ = 2.8;
-float r_7ft = 2.8;
+float r_7ft = 2.78;
 float r_180 = 3.0;
 float r_360 = 2.96;
-float r_90 = 2.0; //2.875 good
+float r_90 = 1.9; //2.875 good
 
 //circumnavigate calculations
 float circ = 2 * pi * r_circ;
@@ -41,7 +41,7 @@ float desired_angle = pi;
 float desired_angle2 = 2 * pi; // this is for detection spinning
 float desired_angle3;
 float cameraAngle;
-bool beaconDetected;
+volatile bool beaconDetected = false;
 
 double ninetyDegrees = pi/2; //added this for the new State
 
@@ -236,12 +236,13 @@ void loop() {
   }
 }
 
-void detectBeacon(float desired_angle2){
+void detectBeacon(float desired_angle2) {
   delay(1000);
   double angleTolerance = 0.05; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error_360;
 
-  do {
+  // Loop until the beacon is detected
+  while (!beaconDetected) {
     // Read encoder counts
     pos_counts[0] = -motor1.read();
     pos_counts[1] = motor2.read();
@@ -301,22 +302,23 @@ void detectBeacon(float desired_angle2){
 
     // Delay to maintain the desired control loop timing
     delay(desired_Ts_ms);
-
-    // Check beaconDetected condition
-
-  } while (true); // Continue looping until beacon is detected
-
-  if (beaconDetected) {
-    Serial.println("Beacon detected");
-    analogWrite(motorPin[1], 0);
-    analogWrite(motorPin[0], 0);
     
-    // The new cameraAngle is already in radians, directly use it
-    desired_angle3 = robot_current_heading - cameraAngle;
-    // Proceed to the next state
-    currentState = TURNING;
+    // No need to manually check 'beaconDetected' here, the while loop condition will handle it.
   }
-} // Make sure this closing brace is here to end the function
+
+  // If the loop exits, it means the beacon has been detected.
+  Serial.println("Beacon detected");
+  analogWrite(motorPin[1], 0);
+  analogWrite(motorPin[0], 0);
+  
+  // The new cameraAngle is already in radians, directly use it
+  // desired_angle3 = robot_current_heading - cameraAngle;
+    desired_angle3 = robot_current_heading - cameraAngle;
+
+  
+  // Proceed to the next state
+  currentState = TURNING;
+}
 
 void turnToDesiredAngle(float desired_angle3) {
   delay(1000);
@@ -447,8 +449,8 @@ void moveToDesiredDistance(float distance) { //distance will always be 7ft
     // Calculate Vsum
     V7ft = (Kp_speed7ft * speed_error7ft) + (Ki_speed7ft * integral_error_speed7ft);
 
-    motorVoltage[0] = V7ft * 0.74;
-    motorVoltage[1] = V7ft * 0.739;
+    motorVoltage[0] = V7ft * 0.267;
+    motorVoltage[1] = V7ft * 0.239;
 
     PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
@@ -480,7 +482,7 @@ last_time_ms = millis();
 
 void turnAngle90(double ninetyDegrees){
   delay(1000);
-  double angleTolerance_90 = 0.8; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angleTolerance_90 = 0.13; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error_90;
   motor1.write(0);
   motor2.write(0);
@@ -704,18 +706,11 @@ void processCompleteMessage(char* message) {
     // Check if the beacon was detected (message starts with '1')
     if (message[0] == '1') {
         beaconDetected = true;
-
+        Serial.println("Beacon Detected: Yes");
         // Assuming the message is structured as "1ANGLE_VALUE", where ANGLE_VALUE is directly after '1'
         float angleDegrees = atof(message + 1); // Convert the angle value to float
         cameraAngle = angleDegrees * (PI / 180.0); // Convert to radians
 
-        // Print the angle for debugging purposes
-        Serial.print("Beacon Detected: Yes\nAngle Received in Radians: ");
-        Serial.println(cameraAngle);
-
-        // Ensure that the state is updated to exit the loop in detectBeacon
-        currentState = TURNING; // Move this here to ensure the state changes
-        Serial.println("State Changed to TURNING");
     } else {
         // If the first character is not '1', assume no beacon is detected
         beaconDetected = false;
