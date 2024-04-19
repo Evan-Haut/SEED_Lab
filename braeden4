@@ -17,11 +17,12 @@ angle_message_sent = False  # State variable to track if the angle message has b
 
 def send_message(message_type, value=None):
     if message_type == 'detect':
-        message_bytes = b'\x01'  # Sending '1' when marker is detected
+        message_str = '1\n'  # Appending newline character to '1' for detection
     elif message_type == 'angle':
         angle_str = str(value)  # Convert angle to string
-        message_str = '1' + angle_str  # Construct message with '1' for detection and ',' as separator
-        message_bytes = message_str.encode()
+        message_str = '1' + angle_str + '\n'  # Construct message with '1' for detection, ',' as separator, and append newline character
+
+    message_bytes = message_str.encode()  # Encoding the string to bytes
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
     print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
 
