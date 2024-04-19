@@ -1,0 +1,100 @@
+import numpy as np
+import cv2 as cv
+from smbus2 import SMBus
+from threading import Thread
+
+# Constants for camera calibration
+mtx = np.array([[567.72602969, 0, 313.44143064],
+                [0, 567.16356923, 233.64730096],
+                [0, 0, 1]])
+dist = np.array([0.26660512, -0.86434186, -0.00534246, 0.01027815, 1.58472904])
+marker_size = 0.1  # Actual marker size in meters (Update this value accordingly)
+
+# Initialize I2C communication
+i2c = SMBus(1)
+arduino_address = 8
+angle_message_sent = False  # State variable to track if the angle message has been sent
+
+# Function to send a message to Arduino
+def send_message(message_type, value=None):
+    if message_type == 'detect':
+        message_bytes = [1]  # Sending '1' when marker is detected
+    elif message_type == 'angle':
+        angle_str = str(value)  # Convert angle to string
+        message_str = '1,' + angle_str + '\n'  # Construct message with '1' for detection and ',' as separator
+        message_bytes = [ord(char) for char in message_str]
+    i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
+    print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
+
+# This function converts rotation vectors to Euler angles
+def rotation_vector_to_euler_angles(rvec):
+    R = np.zeros((3, 3))
+    cv.Rodrigues(rvec, R)
+    sy = np.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    singular = sy < 1e-6
+    if not singular:
+        x = np.arctan2(R[2,1], R[2,2])
+        y = np.arctan2(-R[2,0], sy)
+        z = np.arctan2(R[1,0], R[0,0])
+    else:
+        x = np.arctan2(-R[1,2], R[1,1])
+        y = np.arctan2(-R[2,0], sy)
+        z = 0
+    return np.array([x, y, z]) * (180.0 / np.pi)
+
+# Function to detect ArUco markers and send only one angle message
+def detect_aruco_marker():
+    global angle_message_sent
+    cap = cv.VideoCapture(0)
+
+    # Check if the camera opened successfully
+    if not cap.isOpened():
+        print("Error: Camera could not be opened.")
+        return
+
+    # Define ArUco dictionary
+    aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_250)
+
+    try:
+        detection_sent = False  # Local variable to ensure we only send the detection message once
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Can't receive frame (stream end?). Exiting ...")
+                break
+
+            # Convert to grayscale for detection
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict)
+
+            if ids is not None and not detection_sent:
+                # Detected the marker, send detection message once
+                print("ArUco marker detected!")
+                send_message('detect')
+                detection_sent = True  # Prevent sending the detection message again
+
+            if ids is not None and detection_sent and not angle_message_sent:
+                # Detected the marker again, calculate and send the yaw angle message once
+                rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
+                if rvec is not None and len(rvec) > 0:
+                    yaw_angle = rotation_vector_to_euler_angles(rvec[0][0])[1]  # Assuming the order of Euler angles is [roll, pitch, yaw]
+                    print(f"Sending yaw angle: {yaw_angle}")
+                    send_message('angle', yaw_angle)
+                    angle_message_sent = True  # Prevent sending the angle message again
+
+            # Show the frame with detected ArUco marker
+            cv.imshow("Detected ArUco Marker", frame)
+
+            # Break the loop if 'q' is pressed
+            if cv.waitKey(1) & 0xFF == ord('q'):
+                print("Quitting...")
+                break
+    finally:
+        # Release the camera and close all windows
+        cap.release()
+        cv.destroyAllWindows()
+
+# Start the ArUco detection in a separate thread
+thread = Thread(target=detect_aruco_marker, daemon=True)
+thread.start()
+thread.join()
