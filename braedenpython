@@ -25,11 +25,21 @@ def send_message(message_type, value=None):
     i2c.write_i2c_block_data(arduino_address, 0, message_bytes)
     print("Sent: " + ("Detection" if message_type == 'detect' else f"Angle: {value}"))
 
-# Function to calculate the angle
-def calculate_angle(marker_center, image_center, distance):
-    dx = marker_center - image_center
-    angle = np.arctan2(dx, distance) * (180 / np.pi)  # Convert from radians to degrees
-    return angle
+# This function converts rotation vectors to Euler angles
+def rotation_vector_to_euler_angles(rvec):
+    R = np.zeros((3, 3))
+    cv.Rodrigues(rvec, R)
+    sy = np.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    singular = sy < 1e-6
+    if not singular:
+        x = np.arctan2(R[2,1], R[2,2])
+        y = np.arctan2(-R[2,0], sy)
+        z = np.arctan2(R[1,0], R[0,0])
+    else:
+        x = np.arctan2(-R[1,2], R[1,1])
+        y = np.arctan2(-R[2,0], sy)
+        z = 0
+    return np.array([x, y, z]) * (180.0 / np.pi)
 
 # Function to detect ArUco markers and send only one angle message
 def detect_aruco_marker():
@@ -42,7 +52,7 @@ def detect_aruco_marker():
         return
 
     # Define ArUco dictionary
-    aruco_dict = cv.aruco.DICT_6X6_250  # Use the dictionary directly
+    aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_6X6_250)
 
     try:
         detection_sent = False  # Local variable to ensure we only send the detection message once
@@ -54,7 +64,7 @@ def detect_aruco_marker():
 
             # Convert to grayscale for detection
             gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, cv.aruco.getPredefinedDictionary(aruco_dict))
+            corners, ids, rejectedImgPoints = cv.aruco.detectMarkers(gray, aruco_dict)
 
             if ids is not None and not detection_sent:
                 # Detected the marker, send detection message once
@@ -63,18 +73,12 @@ def detect_aruco_marker():
                 detection_sent = True  # Prevent sending the detection message again
 
             if ids is not None and detection_sent and not angle_message_sent:
-                # Detected the marker again, calculate and send the angle message once
+                # Detected the marker again, calculate and send the yaw angle message once
                 rvec, tvec, _ = cv.aruco.estimatePoseSingleMarkers(corners, marker_size, mtx, dist)
-                if tvec is not None and len(tvec) > 0:
-                    xsum = np.sum(corners[0][0][:, 0])
-                    ysum = np.sum(corners[0][0][:, 1])
-                    marker_center_x = xsum / 4
-                    marker_center_y = ysum / 4
-                    center_x = frame.shape[1] // 2
-                    center_y = frame.shape[0] // 2
-                    angle = calculate_angle(marker_center_x, center_x, tvec[0][0][2])
-                    print(f"Sending angle: {angle}")
-                    send_message('angle', angle)
+                if rvec is not None and len(rvec) > 0:
+                    yaw_angle = rotation_vector_to_euler_angles(rvec[0][0])[1]  # Assuming the order of Euler angles is [roll, pitch, yaw]
+                    print(f"Sending yaw angle: {yaw_angle}")
+                    send_message('angle', yaw_angle)
                     angle_message_sent = True  # Prevent sending the angle message again
 
             # Show the frame with detected ArUco marker
