@@ -1,3 +1,5 @@
+//7.6V
+
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h> //comm
@@ -154,8 +156,8 @@ float integral_robot_angular_speed_error360;
 // PI for V360
 float Kp_angle360 = 300; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle360 = 0.65; //
-float Kp_angular_speed360 = 0.0001; // 
-float Ki_angular_speed360 = 0.2; //
+float Kp_angular_speed360 = 7; //0.0001 
+float Ki_angular_speed360 = 0.5; //0.2
 
 // V180 Declarations
 float V180;
@@ -310,26 +312,36 @@ void detectBeacon(float desired_angle2) {
   Serial.println("Beacon detected");
   analogWrite(motorPin[1], 0);
   analogWrite(motorPin[0], 0);
-  
+  //desired_angle3 = robot_current_heading - cameraAngle;
+
   // The new cameraAngle is already in radians, directly use it
   // desired_angle3 = robot_current_heading - cameraAngle;
 
-  if ((desired_angle * 180 / pi) < -1) {
-    desired_angle3 = robot_current_heading - cameraAngle + 0.95; //0.16
+  if ((desired_angle * 180 / pi) < 0) { //-1
+    desired_angle3 = robot_current_heading - cameraAngle;// good
   }
     else { 
-    desired_angle3 = robot_current_heading - cameraAngle + 0.11;
-  }
-    
-
-  
-  // Proceed to the next state
+    desired_angle3 = robot_current_heading + cameraAngle; //+ 0.11;
+  }  
+  // // Proceed to the next state
+  // if ((cameraAngle * 180 / pi) < 35.00 && (cameraAngle * 180 / pi) > 0.00 ) {
+  // currentState = MOVING;
+  // }if((cameraAngle * 180 / pi)>20){
+  //   //desired_angle3 = desired_angle3 
+  //   desired_angle3 = (robot_current_heading - cameraAngle)*0.5;
+  //   currentState = TURNING;
+  // }
+  // if((cameraAngle * 180 / pi)<0){
+  //   //desired_angle3 = desired_angle3 
+  //   desired_angle3 = (robot_current_heading - cameraAngle);
+  //   currentState = TURNING;
+  // }
   currentState = TURNING;
 }
 
 void turnToDesiredAngle(float desired_angle3) {
   delay(1000);
-  double angleTolerance = 0.02; // 5.0 // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angleTolerance = 0.5; //0.09 
   double angle_error_180;
 
   do {
