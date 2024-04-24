@@ -157,7 +157,7 @@ float integral_robot_angular_speed_error360;
 float Kp_angle360 = 300; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
 float Ki_angle360 = 0.65; //
 float Kp_angular_speed360 = 7; //0.0001 
-float Ki_angular_speed360 = 0.5; //0.2
+float Ki_angular_speed360 = 0.4; //0.2
 
 // V180 Declarations
 float V180;
@@ -341,7 +341,7 @@ void detectBeacon(float desired_angle2) {
 
 void turnToDesiredAngle(float desired_angle3) {
   delay(1000);
-  double angleTolerance = 0.5; //0.09 
+  double angleTolerance = 0.5; //0.09 //0.5 was working when desiredAngle3 was > 35 and placed at 180deg heading to start with//tried 0.25
   double angle_error_180;
 
   do {
@@ -360,8 +360,7 @@ void turnToDesiredAngle(float desired_angle3) {
   // Set previous positions equal to current positions for the next iteration
     for (int i = 0; i < 2; i++) {
       pos_counts_prev[i] = pos_counts[i];
-      pos_previous_rad[i] = pos_rad[i];
-       
+      pos_previous_rad[i] = pos_rad[i];     
     }
 
     // Calculate the robot's current heading
