@@ -1,0 +1,95 @@
+void moveToDesiredDistance(float cameraDistance) { //distance will always be 7ft
+  //delay(500);
+  //Serial.println("In Desired Distance function");
+  //Serial.println(distance);
+    motor1.write(0);
+    motor2.write(0);
+
+  float desired_feet7ft = cameraDistance ; //- 0.5 ;
+
+  if (desired_feet7ft > 7.5){
+    desired_feet7ft = 7.3;
+  }
+  Serial.print("Distance in function: ");
+  Serial.println(desired_feet7ft);
+
+  float desired_inches7ft = desired_feet7ft * 12;
+  float distance = desired_inches7ft / circ7ft * 2 * pi;
+  delay(5);
+
+  double distanceTolerance = 3.88489 / 1.5; //0.8 good //0.10 was working for 7ft
+  double position_error7ft;
+
+  do{
+    pos_counts[0] = motor1.read();
+    pos_counts[1] = -motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+
+    motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+        // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];
+       
+    }
+    
+    pos_robot7ft = (pos_rad[0] + pos_rad[1]) / 2.0;
+    Serial.println("cameraDistance");
+    Serial.println(cameraDistance);
+    position_error7ft = distance - pos_robot7ft;
+
+   // Update integral of position error
+    integral_error_position7ft += position_error7ft * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired speed
+    desired_speed7ft = (Kp_pos7ft * position_error7ft) + (Ki_pos7ft * integral_error_position7ft);
+
+    // Calculate the robot's current speed
+    speed_robot7ft = (motorVelocity[0] + motorVelocity[1]) / 2.0;
+
+    // Calculate the speed error
+    speed_error7ft = desired_speed7ft - speed_robot7ft;
+
+    // Update integral of speed error
+    integral_error_speed7ft += speed_error7ft * (desired_Ts_ms / 1000.0);
+
+    // Calculate Vsum
+    V7ft = (Kp_speed7ft * speed_error7ft) + (Ki_speed7ft * integral_error_speed7ft);
+
+    motorVoltage[0] = V7ft * 0.10626 * 1.2; //0.26 was decent but not perfect
+    motorVoltage[1] = V7ft * 0.0985 * 1.2; //0.2415
+
+    // PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
+    // PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
+    PWM[0] = 255 * (motorVoltage[0] / batteryVoltage);
+    PWM[1] = 255 * (motorVoltage[1] / batteryVoltage);
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? LOW : HIGH);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? LOW : HIGH);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+    //Serial.print("Distance Error:");
+    //Serial.println(abs(position_error));
+  } while (abs(position_error7ft) > distanceTolerance);
+
+  if (abs(position_error7ft) <= distanceTolerance){
+    analogWrite(motorPin[1], 0);
+    analogWrite(motorPin[0], 0);
+    currentState = TURN90;
+    return;
+  }
+  // Delay
+  while (millis() < last_time_ms + desired_Ts_ms) {
+}
+last_time_ms = millis();
+}
