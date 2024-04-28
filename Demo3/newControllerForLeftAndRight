@@ -1,0 +1,824 @@
+//7.6V
+
+#define ENCODER_OPTIMIZE_INTERRUPTS
+#include <Encoder.h>
+#include <Wire.h> //comm
+#define MY_ADDR 8 //comm 
+
+//char receivedChars[32];
+
+//comm
+// Global variables to be used for I2C communication
+volatile uint8_t offset = 0;
+volatile uint8_t instruction[32] = {0}; // Assuming a max command length of 32 for this example
+volatile uint8_t msgLength;
+float messageReceived[3]= {0.0,0.0,0.0}; //not being used anywhere in the code
+float ii = 0;
+float x;
+//180 and 2 ft
+const float pi = 3.14159;
+bool isInitialValueSet = false;  // This flag will control the updating of cameraDistance and x
+
+//radius
+float r_circ = 2.9; //2.75
+float r_7ft = 2.78;
+float r_180 = 3.0;
+float r_360 = 2.96;
+float r_90 = 1.8; //2.875 good
+
+//circumnavigate calculations
+float circ = 2 * pi * r_circ;
+float desired_feetcirc = 2 * PI; //input in feet
+float desired_inchescirc = desired_feetcirc * 12;
+float circ_distance = desired_inchescirc / circ * 2 * pi; 
+
+
+//straight line
+float circ7ft = (2*pi*r_7ft);
+// float desired_feet7ft = 6.2;
+// float desired_inches7ft = desired_feet7ft * 12;
+// float distance = desired_inches7ft / circ7ft * 2 * pi;
+float robot_diameter = 15.0; //measure wheel to wheel later
+
+//angle in radian
+float desired_angle = pi;
+float desired_angle2 = 2 * pi; // this is for detection spinning
+float desired_angle3;
+float cameraAngle;
+float cameraDistance;
+volatile bool beaconDetected = false;
+
+double ninetyDegrees = pi/2; //added this for the new State
+
+// State Machine States
+enum State {DETECT, TURNING, MOVING, TURN90, CIRCLE, STOP };
+State currentState = STOP;
+
+
+// initialize desired position
+float desired_position[2] = {0, 0}; 
+
+// Gain, battery voltage
+float Kp = 2.0;
+float batteryVoltage = 7.8;
+
+// Error and PWM both wheels 
+float error[2]; 
+float PWM[2]; 
+
+//Encoder left and right 
+Encoder motor1(2, 5); 
+Encoder motor2(3, 6); 
+
+// initialize encoder counts
+long encoder_count[2]; 
+
+// Enable pin
+const int enablePin = 4;
+
+
+// Voltage sign pins, 7 & 8
+const int vsignPin7 = 7;
+const int vsignPin8 = 8; 
+
+// Motor voltage pins 9 & 10
+const int motorPin[2] = {9, 10}; 
+
+// time variables
+unsigned long desired_Ts_ms = 10; 
+unsigned long last_time_ms;
+unsigned long start_time;
+float current_time;
+
+// Motor velocity variables
+float motorVelocity[2] = {0.0, 0.0}; 
+
+// Motor voltage variables
+float motorVoltage[2] = {0.0, 0.0}; 
+
+// Previous count variables
+long pos_counts_prev[2]; 
+
+// Initialize previous radian variables
+float pos_previous_rad[2]; 
+
+// Initialize quadrant
+////int quadrant;
+int left_wheel;
+int right_wheel;
+
+float integral_error[2] = {0.0, 0.0}; 
+float prev_error[2] = {0.0, 0.0}; 
+
+// Variables for calculating position
+long pos_counts[2];
+float pos_rad[2];
+
+// V7ft Declarations
+float V7ftLeft;
+float position_error7ftLeft;
+float desired_speed7ftLeft;
+float robot_current_heading;
+float pos_robot7ftLeft;
+float integral_error_position7ftLeft;
+float integral_error_speed7ftLeft;
+float speed_robot7ftLeft;
+float speed_error7ftLeft;
+float V7ftRight;
+float position_error7ftRight;
+float desired_speed7ftRight;
+float pos_robot7ftRight;
+float integral_error_position7ftRight;
+float integral_error_speed7ftRight;
+float speed_robot7ftRight;
+float speed_error7ftRight;
+
+// PI for position and speed for V7ft
+float Kp_pos7ftLeft = 2.4; //3.3 for 135 turn 180 2ft; 2.3 for 3ft and 5ft AND 7FT STRAIGHT
+float Ki_pos7ftLeft = 0.05; //0.65 for all tests beside 5ft straight, 0.35 for 5ft, 0.05 FOR 7FT STRAIGHT
+float Kp_speed7ftLeft = 0.95; //0.1 for all //0.5
+float Ki_speed7ftLeft = 0.07; //0.004 for all //0.1
+
+float Kp_pos7ftRight = 2.4; //3.3 for 135 turn 180 2ft; 2.3 for 3ft and 5ft AND 7FT STRAIGHT
+float Ki_pos7ftRight = 0.05; //0.65 for all tests beside 5ft straight, 0.35 for 5ft, 0.05 FOR 7FT STRAIGHT
+float Kp_speed7ftRight = 0.95; //0.1 for all //0.5
+float Ki_speed7ftRight = 0.07; //0.004 for all //0.1
+
+// Vcirc Declarations
+float Vcirc;
+float position_errorcirc;
+float desired_speedcirc;
+float pos_robotcirc;
+float integral_error_positioncirc;
+float integral_error_speedcirc;
+float speed_robotcirc;
+float speed_errorcirc;
+
+// PI for position and speed for Vcirc
+float Kp_poscirc = 3.3; //3.3 for 135 turn 180 2ft; 2.3 for 3ft and 5ft AND 7FT STRAIGHT
+float Ki_poscirc = 0.65; //0.65 for all tests beside 5ft straight, 0.35 for 5ft, 0.05 FOR 7FT STRAIGHT
+float Kp_speedcirc = 0.1; //0.1 for all
+float Ki_speedcirc = 0.001; //0.004 for all
+
+
+// V360 Declarations
+float V360;
+float integral_error_angle360;
+float angular_speed360;
+float robot_angular_speed360;
+float robot_angular_speed_error360;
+float integral_robot_angular_speed_error360;
+
+// PI for V360
+float Kp_angle360 = 300; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
+float Ki_angle360 = 0.65; //
+float Kp_angular_speed360 = 6.5; //0.0001 
+float Ki_angular_speed360 = 0.4; //0.2
+
+// V180 Declarations
+float V180;
+float integral_error_angle180;
+float angular_speed180;
+float robot_angular_speed180;
+float robot_angular_speed_error180;
+float integral_robot_angular_speed_error180;
+
+// PI for V180
+float Kp_angle180 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
+float Ki_angle180 = 0.65; //
+float Kp_angular_speed180 = 2; //0.5 
+float Ki_angular_speed180 = 1; //
+
+//PI for 90 turn
+float Kp_angle_90 = 80; // 50 for 135 and 2.83 ft //80 for 180turn2ft //150 FOR 5 AND 7FT STRAIGHT
+float Ki_angle_90 = 0.65; //
+float Kp_angular_speed_90 = 0.5; //0.5 
+float Ki_angular_speed_90= 1; //
+
+//Turn 90 vars declarations
+  double integral_error_angle_90;
+  double angular_speed_90;
+  double robot_angular_speed_error_90;
+  double robot_angular_speed_90;
+  double integral_robot_angular_speed_error_90;
+  double Vdelta_90;
+
+void setup() {
+  //comm figure out the baud rate
+  Serial.begin(115200); 
+  //Serial.begin(9600); 
+
+  Wire.begin(MY_ADDR);
+  // Set callback for I2C receive
+  Wire.onReceive(receiveEvent);
+  pinMode(motorPin[0], OUTPUT);
+  pinMode(motorPin[1], OUTPUT);
+  pinMode(4, OUTPUT);
+  pinMode(vsignPin7, OUTPUT);
+  pinMode(vsignPin8, OUTPUT);
+  
+  digitalWrite(4, HIGH);
+
+  // Initialize encoders
+  motor1.write(0);
+  motor2.write(0);
+
+  // Initial State
+  currentState = DETECT; // Start with turning
+}
+
+void loop() {
+  // Debugging: Print current state
+  //Serial.print("Current State: ");
+  // float  desired_dist = 0;
+  // int i = 0;
+  // //Serial.println(currentState);
+  // for (i=0;i<0;i++){
+  //    float desired_dist = receiveEvent();
+  //    Serial.println(desired_dist);
+  // }
+  // Serial.print("X: ");
+  // Serial.println(x);
+  
+  switch (currentState) {
+    case DETECT:
+      detectBeacon(desired_angle2); 
+      break;
+    case TURNING:
+      turnToDesiredAngle(desired_angle3);
+      break;
+    case MOVING:
+      moveToDesiredDistance(x);
+      break;
+    case TURN90:
+      turnAngle90(ninetyDegrees);
+      break;
+    case CIRCLE:
+      circumNavigate(circ_distance);
+      break;
+    case STOP:
+      stopMotors();
+      break;
+  }
+}
+void receiveEvent() {
+    static char receivedChars[32];
+    static int index = 0;
+    static int charsToIgnore = 2; // Number of characters to ignore at the beginning
+
+
+    while (Wire.available()) {
+        char c = Wire.read(); // Read a character from the I2C buffer
+        //Serial.println(c);
+        if (charsToIgnore > 0) {
+            // Ignore the first three characters
+            charsToIgnore--;
+            continue;
+        }
+        // Serial.print("Character read: '");
+        // Serial.print(c);
+        // Serial.println("'");
+
+
+        // Check if newline is detected at the beginning of the message
+        if (c == '\n' && index == 0) {
+            //Serial.println("Newline received at the beginning of the message. Ignoring.");
+            continue; // Ignore this character and continue with the next one
+        }
+
+
+        if (c == '\n') {
+            receivedChars[index] = '\0'; // Null-terminate the string
+            // Serial.print("Complete Message Received: '");
+            // Serial.print(receivedChars);
+            // Serial.println("'");
+            //processCompleteMessage(receivedChars);
+            index = 0; // Reset index after processing
+        } else if (index < sizeof(receivedChars) - 1) {
+            receivedChars[index++] = c;
+            //Serial.println(receivedChars);
+        } else {
+            Serial.println("Error: Message buffer overflow.");
+            index = 0; // Reset index to avoid buffer overflow
+        }
+        // Serial.println(c);
+    }
+
+
+// void processCompleteMessage(char* message) {
+//     // Print the received message for debugging purposes
+//     //Serial.print("Processing Message: '");
+//     //Serial.print(message);
+//     //Serial.println("'");
+
+
+//     // Check if the message is at least 2 characters long ("1\n")
+//     if (strlen(message) < 2) {
+//       Serial.println(message);
+//         //Serial.println("Error: Received message is incomplete or corrupted.");
+//         return; // Exit the function if the message is too short
+//     }
+
+
+    // Check if the beacon was detected (message starts with '1')
+  if (receivedChars[0] == '1') {
+    beaconDetected = true;
+    //Serial.println("Beacon Detected: Yes");
+    // Assuming the message is structured as "1ANGLE_VALUE", where ANGLE_VALUE is directly after '1'
+
+
+    // Extract the single character at index 1 and convert it to float
+    // Serial.print(receivedChars[1]);
+    // Serial.print(receivedChars[2]);
+    // Serial.print(receivedChars[3]);
+
+    String secondChar = String(receivedChars[1])+receivedChars[2]+receivedChars[3];
+    // Serial.print(secondChar);
+    cameraDistance = secondChar.toFloat();// - '0');
+    x = cameraDistance;
+    //cameraDistance = valueAtSecondPlace;
+    //
+    //
+    Serial.print("Distance: ");
+    Serial.println(cameraDistance);
+    // Serial.print("X: ");
+    // Serial.println(x);
+
+
+    float angleDegrees = atof(receivedChars + 4); // Convert the angle value to float
+    cameraAngle = angleDegrees * (PI / 180.0); // Convert to radians
+    
+} else {
+        // If the first character is not '1', assume no beacon is detected
+        beaconDetected = false;
+        Serial.println("Beacon Detected: No");
+    }
+  //return cameraDistance;
+}
+
+
+
+void detectBeacon(float desired_angle2) {
+  delay(1000);
+  double angleTolerance = 0.05; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angle_error_360;
+
+  // Loop until the beacon is detected
+  while (!beaconDetected) {
+    // Read encoder counts
+    pos_counts[0] = -motor1.read();
+    pos_counts[1] = motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+    motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+    // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];
+    }
+
+    // Calculate the robot's current heading
+    robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_360;
+    
+    // Calculate the angle error
+    angle_error_360 = desired_angle2 - robot_current_heading;
+
+    // Update integral of angle error
+    integral_error_angle360 += angle_error_360 * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired angular speed
+    angular_speed360 = (Kp_angle360 * angle_error_360) + (Ki_angle360 * integral_error_angle360);
+
+    // Calculate the robot's current angular speed
+    robot_angular_speed360 = ((motorVelocity[1] - motorVelocity[0]) / robot_diameter) * r_360;
+
+    // Calculate the error in angular speed
+    robot_angular_speed_error360 = angular_speed360 - robot_angular_speed360;
+
+    // Update integral of angular speed error
+    integral_robot_angular_speed_error360 += robot_angular_speed_error360 * (desired_Ts_ms / 1000.0);
+
+    // Calculate V360
+    V360 = (Kp_angular_speed360 * robot_angular_speed_error360) + (Ki_angular_speed360 * integral_robot_angular_speed_error360);
+
+    // Adjust motor voltages based on Vdelta
+    motorVoltage[0] = V360 * 0.00015;  //0.05 for 135 and 2.83 ft
+    motorVoltage[1] = -V360 * 0.00015;
+
+    // Determine the direction of motor voltages and set the PWM values
+    PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
+    PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
+
+    // Ensure the direction is correct for each motor
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? HIGH : LOW);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? HIGH : LOW);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+    
+    // No need to manually check 'beaconDetected' here, the while loop condition will handle it.
+  }
+
+  // If the loop exits, it means the beacon has been detected.
+  //Serial.println("Beacon detected");
+  analogWrite(motorPin[1], 0);
+  analogWrite(motorPin[0], 0);
+  //desired_angle3 = robot_current_heading - cameraAngle;
+
+  // The new cameraAngle is already in radians, directly use it
+  desired_angle3 = robot_current_heading + cameraAngle;
+
+  // if ((desired_angle * 180 / pi) < 0) { //-1
+  //   desired_angle3 = robot_current_heading - cameraAngle;// good
+  // }
+  //   else { 
+  //   desired_angle3 = robot_current_heading + cameraAngle; //+ 0.11;
+  // }  
+  // // Proceed to the next state
+  // if ((cameraAngle * 180 / pi) < 35.00 && (cameraAngle * 180 / pi) > 0.00 ) {
+  // currentState = MOVING;
+  // }if((cameraAngle * 180 / pi)>20){
+  //   //desired_angle3 = desired_angle3 
+  //   desired_angle3 = (robot_current_heading - cameraAngle)*0.5;
+  //   currentState = TURNING;
+  // }
+  // if((cameraAngle * 180 / pi)<0){
+  //   //desired_angle3 = desired_angle3 
+  //   desired_angle3 = (robot_current_heading - cameraAngle);
+  //   currentState = TURNING;
+  // }
+  currentState = TURNING;
+}
+
+void turnToDesiredAngle(float desired_angle3) {
+  delay(1000);
+  double angleTolerance = 0.09; //0.09 //0.5 was working when desiredAngle3 was > 35 and placed at 180deg heading to start with//tried 0.25
+  double angle_error_180;
+  // Serial.print("X: ");
+  // Serial.println(x);
+  do {
+    // Read encoder counts
+    pos_counts[0] = -motor1.read();
+    pos_counts[1] = motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+
+    motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+  // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];     
+    }
+
+    // Calculate the robot's current heading
+    robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_180;
+    
+    // Calculate the angle error
+    angle_error_180 = desired_angle3 - robot_current_heading;
+    
+
+    // Update integral of angle error
+    integral_error_angle180 += angle_error_180 * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired angular speed
+    angular_speed180 = (Kp_angle180 * angle_error_180) + (Ki_angle180 * integral_error_angle180);
+
+    // Calculate the robot's current angular speed
+    robot_angular_speed180 = ((motorVelocity[1] - motorVelocity[0]) / robot_diameter) * r_180;
+
+    // Calculate the error in angular speed
+    robot_angular_speed_error180 = angular_speed180 - robot_angular_speed180;
+
+    // Update integral of angular speed error
+    integral_robot_angular_speed_error180 += robot_angular_speed_error180 * (desired_Ts_ms / 1000.0);
+
+    // Calculate Vdelta
+    V180 = (Kp_angular_speed180 * robot_angular_speed_error180) + (Ki_angular_speed180 * integral_robot_angular_speed_error180);
+
+
+    // Adjust motor voltages based on Vdelta
+      motorVoltage[0] = V180 * 0.04;  //0.05 for 135 and 2.83 ft
+      motorVoltage[1] = -V180 * 0.04;
+
+    // Determine the direction of motor voltages and set the PWM values
+    PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
+    PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
+
+    // Ensure the direction is correct for each motor
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? HIGH : LOW);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? HIGH : LOW);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+
+  } while (abs(angle_error_180) > angleTolerance);
+
+  if (abs(angle_error_180 <= angleTolerance)){
+    analogWrite(motorPin[1], 0);
+    analogWrite(motorPin[0], 0);
+    delay(20);
+    currentState = MOVING;
+    return;
+  }
+}
+
+void moveToDesiredDistance(float cameraDistance) { //distance will always be 7ft
+  //delay(500);
+  //Serial.println("In Desired Distance function");
+  //Serial.println(distance);
+
+  float desired_feet7ft = cameraDistance - 0.5 ;
+  Serial.print("Distance in function: ");
+  Serial.println(desired_feet7ft);
+
+  float desired_inches7ft = desired_feet7ft * 12;
+  float distance = desired_inches7ft / circ7ft * 2 * pi;
+  delay(20);
+
+  double distanceTolerance = 0.2; //0.8 good //0.10 was working for 7ft
+  double position_error7ft;
+
+  do{
+    pos_counts[0] = motor1.read();
+    pos_counts[1] = -motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+
+    motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+        // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];
+       
+    }
+    
+    //pos_robot7ft = (pos_rad[0] + pos_rad[1]) / 2.0;
+    Serial.println("cameraDistance");
+    Serial.println(cameraDistance);
+    position_error7ftLeft = distance - pos_rad[0];
+    position_error7ftRight = distance - pos_rad[1];
+
+    //LEFT
+   // Update integral of position error
+    integral_error_position7ftLeft += position_error7ftLeft * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired speed
+    desired_speed7ftLeft = (Kp_pos7ftLeft * position_error7ftLeft) + (Ki_pos7ftLeft * integral_error_position7ftLeft);
+
+    // Calculate the robot's current speed
+    //speed_robot7ft = (motorVelocity[0] + motorVelocity[1]) / 2.0;
+
+    // Calculate the speed error
+    speed_error7ftLeft = desired_speed7ftLeft - motorVelocity[0];
+
+    // Update integral of speed error
+    integral_error_speed7ftLeft += speed_error7ftLeft * (desired_Ts_ms / 1000.0);
+
+    // Calculate Vsum
+    V7ftLeft = (Kp_speed7ftLeft * speed_error7ftLeft) + (Ki_speed7ftLeft * integral_error_speed7ftLeft);
+
+    //RIGHT
+    //integral_error_position7ftRight; desired_speed7ftRight;
+    // Update integral of position error
+    integral_error_position7ftRight += position_error7ftRight * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired speed
+    desired_speed7ftRight = (Kp_pos7ftRight * position_error7ftRight) + (Ki_pos7ftRight * integral_error_position7ftRight);
+
+    // Calculate the robot's current speed
+    //speed_robot7ft = (motorVelocity[0] + motorVelocity[1]) / 2.0;
+
+    // Calculate the speed error
+    speed_error7ftRight = desired_speed7ftRight - motorVelocity[1];
+
+    // Update integral of speed error
+    integral_error_speed7ftRight += speed_error7ftRight * (desired_Ts_ms / 1000.0);
+
+    // Calculate Vsum
+    V7ftRight = (Kp_speed7ftRight * speed_error7ftRight) + (Ki_speed7ftRight * integral_error_speed7ftRight);
+//
+    motorVoltage[0] = V7ftLeft; //0.26 was decent but not perfect
+    motorVoltage[1] = V7ftRight; //0.2415
+
+    PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
+    PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
+
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? LOW : HIGH);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? LOW : HIGH);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+    //Serial.print("Distance Error:");
+    //Serial.println(abs(position_error));
+  } while (abs(position_error7ft) > distanceTolerance);
+
+  if (abs(position_error7ft) <= distanceTolerance){
+    analogWrite(motorPin[1], 0);
+    analogWrite(motorPin[0], 0);
+    currentState = TURN90;
+    return;
+  }
+  // Delay
+  while (millis() < last_time_ms + desired_Ts_ms) {
+}
+last_time_ms = millis();
+}
+
+void turnAngle90(double ninetyDegrees){
+  delay(1000);
+  double angleTolerance_90 = 0.13; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angle_error_90;
+  motor1.write(0);
+  motor2.write(0);
+
+  do {
+    // Read encoder counts
+    pos_counts[0] = -motor1.read();
+    pos_counts[1] = motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = 2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = 2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+
+    motorVelocity[0] = -(pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = -(pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+        // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];
+       
+    }
+
+    // Calculate the robot's current heading
+    robot_current_heading = ((pos_rad[1] - pos_rad[0]) / robot_diameter) * r_90;
+    
+    // Calculate the angle error
+    angle_error_90 = ninetyDegrees - robot_current_heading;
+
+    // Update integral of angle error
+    integral_error_angle_90 += angle_error_90 * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired angular speed
+    angular_speed_90 = (Kp_angle_90 * angle_error_90) + (Ki_angle_90 * integral_error_angle_90);
+
+    // Calculate the robot's current angular speed
+    robot_angular_speed_90 = ((motorVelocity[1] - motorVelocity[0]) / robot_diameter) * r_90;
+
+    // Calculate the error in angular speed
+    robot_angular_speed_error_90 = angular_speed_90 - robot_angular_speed_90;
+    //angle_error_90, integral_error_angle_90, angular_speed_90, r_90, robot_angular_speed_error_90, robot_angular_speed_90, integral_robot_angular_speed_error_90, 
+     // Kp_angular_speed_90, Ki_angular_speed_90, 
+    // Update integral of angular speed error
+    integral_robot_angular_speed_error_90 += robot_angular_speed_error_90 * (desired_Ts_ms / 1000.0);
+
+    // Calculate Vdelta
+    Vdelta_90 = (Kp_angular_speed_90 * robot_angular_speed_error_90) + (Ki_angular_speed_90 * integral_robot_angular_speed_error_90);
+
+    // Adjust motor voltages based on Vdelta
+    motorVoltage[0] = -Vdelta_90 * 0.12;  //0.05 for 135 and 2.83 ft
+    motorVoltage[1] = Vdelta_90 * 0.12;
+
+    // Determine the direction of motor voltages and set the PWM values
+    PWM[0] = -255 * abs(motorVoltage[0] / batteryVoltage);
+    PWM[1] = -255 * abs(motorVoltage[1] / batteryVoltage);
+
+    // Ensure the direction is correct for each motor
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? HIGH : LOW);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? HIGH : LOW);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+    //Serial.print("Angle Error:");
+    //Serial.println(angle_error);
+  } while (abs(angle_error_90) > angleTolerance_90);
+
+  if (abs(angle_error_90 <= angleTolerance_90)){
+    analogWrite(motorPin[1], 0);
+    analogWrite(motorPin[0], 0);
+
+    //delay(10);
+    currentState = CIRCLE;
+    return;
+  }
+}
+void circumNavigate(float circ_distance) {
+  delay(500);
+  //Serial.println("In Desired Distance function");
+  //Serial.println(circ_distance);
+  double distanceTolerance = 0.5;
+  double position_errorcirc;
+
+  motor1.write(0);
+  motor2.write(0);
+
+  do{
+    pos_counts[0] = motor1.read();
+    pos_counts[1] = -motor2.read();
+
+    // Convert encoder counts to radians
+    pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
+    pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
+
+
+    motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
+    motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
+
+        // Set previous positions equal to current positions for the next iteration
+    for (int i = 0; i < 2; i++) {
+      pos_counts_prev[i] = pos_counts[i];
+      pos_previous_rad[i] = pos_rad[i];
+       
+    }
+    
+    pos_robotcirc = (pos_rad[0] + pos_rad[1]) / 2.0;
+    
+    position_errorcirc = circ_distance - pos_robotcirc;
+
+   // Update integral of position error
+    integral_error_positioncirc += position_errorcirc * (desired_Ts_ms / 1000.0);
+
+    // Calculate the desired speed
+    desired_speedcirc = (Kp_poscirc * position_errorcirc) + (Ki_poscirc * integral_error_positioncirc);
+
+    // Calculate the robot's current speed
+    speed_robotcirc = (motorVelocity[0] + motorVelocity[1]) / 2.0;
+
+    // Calculate the speed error
+    speed_errorcirc = desired_speedcirc - speed_robotcirc;
+
+    // Update integral of speed error
+    integral_error_speedcirc += speed_errorcirc * (desired_Ts_ms / 1000.0);
+
+    // Calculate Varound
+    Vcirc = (Kp_speedcirc * speed_errorcirc) + (Ki_speedcirc * integral_error_speedcirc);
+
+    motorVoltage[0] = Vcirc * 0.4; 
+    motorVoltage[1] = Vcirc * 0.11;
+
+    PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
+    PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
+
+    digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? LOW : HIGH);
+    digitalWrite(vsignPin8, motorVoltage[1] <= 0 ? LOW : HIGH);
+
+    // Write the PWM to the motors, ensuring the values do not exceed 255
+    analogWrite(motorPin[1], min(PWM[0], 255));
+    analogWrite(motorPin[0], min(PWM[1], 255));
+
+    // Delay to maintain the desired control loop timing
+    delay(desired_Ts_ms);
+    //Serial.print("Distance Error:");
+    //Serial.println(abs(position_error));
+  } while (abs(position_errorcirc) > distanceTolerance);
+
+  if (abs(position_errorcirc) <= distanceTolerance){
+    analogWrite(motorPin[1], 0);
+    analogWrite(motorPin[0], 0);
+    currentState = STOP;
+    return;
+  }
+  // Delay
+  while (millis() < last_time_ms + desired_Ts_ms) {
+}
+last_time_ms = millis();
+}
+  // currentState = STOP;
+
+void stopMotors(){
+  analogWrite(motorPin[0],0);
+  analogWrite(motorPin[1],0);
+  delay(10);
+}
