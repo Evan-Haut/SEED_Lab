@@ -554,7 +554,8 @@ void moveToDesiredDistance(float cameraDistance) { //distance will always be 7ft
   delay(20);
 
   double distanceTolerance = 0.2; //0.8 good //0.10 was working for 7ft
-  double position_error7ft;
+  double position_error7ftLeft;
+  double position_error7ftRight;
 
   do{
     pos_counts[0] = motor1.read();
@@ -637,9 +638,9 @@ void moveToDesiredDistance(float cameraDistance) { //distance will always be 7ft
     delay(desired_Ts_ms);
     //Serial.print("Distance Error:");
     //Serial.println(abs(position_error));
-  } while (abs(position_error7ft) > distanceTolerance);
+  } while (abs((position_error7ftLeft+position_error7ftLeft)/2.0) > distanceTolerance);
 
-  if (abs(position_error7ft) <= distanceTolerance){
+  if (abs((position_error7ftLeft+position_error7ftLeft)/2.0) <= distanceTolerance){
     analogWrite(motorPin[1], 0);
     analogWrite(motorPin[0], 0);
     currentState = TURN90;
