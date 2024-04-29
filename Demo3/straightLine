@@ -48,10 +48,8 @@ float cameraAngle;
 float cameraDistance;
 volatile bool beaconDetected = false;
 
-double ninetyDegrees = pi/3; //added this for the new State
-
 // State Machine States
-enum State {DETECT, TURNING, MOVING, TURN90, CIRCLE, STOP };
+enum State {DETECT, TURNING, MOVING, STOP };
 State currentState = STOP;
 
 
@@ -210,22 +208,10 @@ void setup() {
   motor1.write(0);
   motor2.write(0);
 
-  // Initial State
   currentState = DETECT; // Start with turning
 }
 
 void loop() {
-  // Debugging: Print current state
-  //Serial.print("Current State: ");
-  // float  desired_dist = 0;
-  // int i = 0;
-  // //Serial.println(currentState);
-  // for (i=0;i<0;i++){
-  //    float desired_dist = receiveEvent();
-  //    Serial.println(desired_dist);
-  // }
-  // Serial.print("X: ");
-  // Serial.println(x);
   
   switch (currentState) {
     case DETECT:
@@ -252,16 +238,11 @@ void receiveEvent() {
 
     while (Wire.available()) {
         char c = Wire.read(); // Read a character from the I2C buffer
-        //Serial.println(c);
         if (charsToIgnore > 0) {
             // Ignore the first three characters
             charsToIgnore--;
             continue;
         }
-        // Serial.print("Character read: '");
-        // Serial.print(c);
-        // Serial.println("'");
-
 
         // Check if newline is detected at the beginning of the message
         if (c == '\n' && index == 0) {
@@ -272,10 +253,6 @@ void receiveEvent() {
 
         if (c == '\n') {
             receivedChars[index] = '\0'; // Null-terminate the string
-            // Serial.print("Complete Message Received: '");
-            // Serial.print(receivedChars);
-            // Serial.println("'");
-            //processCompleteMessage(receivedChars);
             index = 0; // Reset index after processing
         } else if (index < sizeof(receivedChars) - 1) {
             receivedChars[index++] = c;
@@ -284,49 +261,19 @@ void receiveEvent() {
             Serial.println("Error: Message buffer overflow.");
             index = 0; // Reset index to avoid buffer overflow
         }
-        // Serial.println(c);
     }
-
-
-// void processCompleteMessage(char* message) {
-//     // Print the received message for debugging purposes
-//     //Serial.print("Processing Message: '");
-//     //Serial.print(message);
-//     //Serial.println("'");
-
-
-//     // Check if the message is at least 2 characters long ("1\n")
-//     if (strlen(message) < 2) {
-//       Serial.println(message);
-//         //Serial.println("Error: Received message is incomplete or corrupted.");
-//         return; // Exit the function if the message is too short
-//     }
-
 
     // Check if the beacon was detected (message starts with '1')
   if (receivedChars[0] == '1') {
     beaconDetected = true;
-    //Serial.println("Beacon Detected: Yes");
-    // Assuming the message is structured as "1ANGLE_VALUE", where ANGLE_VALUE is directly after '1'
-
-
-    // Extract the single character at index 1 and convert it to float
-    // Serial.print(receivedChars[1]);
-    // Serial.print(receivedChars[2]);
-    // Serial.print(receivedChars[3]);
 
     String secondChar = String(receivedChars[1])+receivedChars[2]+receivedChars[3];
     // Serial.print(secondChar);
-    cameraDistance = secondChar.toFloat();// - '0');
+    cameraDistance = secondChar.toFloat();
     x = cameraDistance;
-    //cameraDistance = valueAtSecondPlace;
-    //
-    //
+
     Serial.print("Distance: ");
     Serial.println(cameraDistance);
-    // Serial.print("X: ");
-    // Serial.println(x);
-
 
     float angleDegrees = atof(receivedChars + 4); // Convert the angle value to float
     cameraAngle = angleDegrees * (PI / 180.0); // Convert to radians
@@ -339,14 +286,12 @@ void receiveEvent() {
   //return cameraDistance;
 }
 
-
-
 void detectBeacon(float desired_angle2) {
   delay(1200);
-  double angleTolerance = 0.05; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
+  double angleTolerance = 0.012; // Angle tolerance in radians //0.02 is 1 deg in radian //0.35 for 2
   double angle_error_360;
-    motor1.write(0);
-    motor2.write(0);
+    // motor1.write(0);
+    // motor2.write(0);
 
 
   // Loop until the beacon is detected
@@ -422,38 +367,16 @@ void detectBeacon(float desired_angle2) {
 
   // The new cameraAngle is already in radians, directly use it
   desired_angle3 = robot_current_heading + cameraAngle;
-
-  // if ((desired_angle * 180 / pi) < 0) { //-1
-  //   desired_angle3 = robot_current_heading - cameraAngle;// good
-  // }
-  //   else { 
-  //   desired_angle3 = robot_current_heading + cameraAngle; //+ 0.11;
-  // }  
-  // // Proceed to the next state
-  // if ((cameraAngle * 180 / pi) < 35.00 && (cameraAngle * 180 / pi) > 0.00 ) {
-  // currentState = MOVING;
-  // }if((cameraAngle * 180 / pi)>20){
-  //   //desired_angle3 = desired_angle3 
-  //   desired_angle3 = (robot_current_heading - cameraAngle)*0.5;
-  //   currentState = TURNING;
-  // }
-  // if((cameraAngle * 180 / pi)<0){
-  //   //desired_angle3 = desired_angle3 
-  //   desired_angle3 = (robot_current_heading - cameraAngle);
-  //   currentState = TURNING;
-  // }
   currentState = TURNING;
 }
 
 void turnToDesiredAngle(float desired_angle3) {
-  delay(5);
+  delay(20);
   double angleTolerance = 0.09; //0.09 //0.5 was working when desiredAngle3 was > 35 and placed at 180deg heading to start with//tried 0.25
   double angle_error_180;
-    motor1.write(0);
-    motor2.write(0);
+    // motor1.write(0);
+    // motor2.write(0);
 
-  // Serial.print("X: ");
-  // Serial.println(x);
   do {
     // Read encoder counts
     pos_counts[0] = -motor1.read();
@@ -503,9 +426,6 @@ void turnToDesiredAngle(float desired_angle3) {
       motorVoltage[0] = V180 * 0.04;  //0.05 for 135 and 2.83 ft
       motorVoltage[1] = -V180 * 0.04;
 
-    // Determine the direction of motor voltages and set the PWM values
-    // PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
-    // PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
     PWM[0] = 255 * (motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * (motorVoltage[1] / batteryVoltage);
 
@@ -532,17 +452,12 @@ void turnToDesiredAngle(float desired_angle3) {
 }
 
 void moveToDesiredDistance(float cameraDistance) { //distance will always be 7ft
-  //delay(500);
-  //Serial.println("In Desired Distance function");
-  // //Serial.println(distance);
-  //   motor1.write(0);
-  //   motor2.write(0);
 
-  float desired_feet7ft = cameraDistance ; //- 0.5 ;
+  float desired_feet7ft = 6.5 ; //- 0.5 ;
 
-  if (desired_feet7ft > 7.5){
-    desired_feet7ft = 7.3;
-  }
+  // if (desired_feet7ft > 7.5){
+  //   desired_feet7ft = 7.3;
+  // }
   Serial.print("Distance in function: ");
   Serial.println(desired_feet7ft);
 
