@@ -1,0 +1,2 @@
+The Rasberry Pi Code serves to detect the aruco marker and then send the distance and angle to the marker to the arduino. It then sends these angles over I2C to the arduino
+which then controls the motors. It detects the markers via the openCV library, then uses a calibrated matrix to flatten the image and find the distance and angle.
