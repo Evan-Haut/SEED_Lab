@@ -20,11 +20,11 @@ const float pi = 3.14159;
 bool isInitialValueSet = false;  // This flag will control the updating of cameraDistance and x
 
 //radius
-float r_circ = 2.88; //2.75
+float r_circ = 2.88; 
 float r_7ft = 2.78;
 float r_180 = 3.0;
 float r_360 = 2.96;
-float r_90 = 1.8; //2.875 good
+float r_90 = 1.8; 
 
 //circumnavigate calculations
 float circ = 2 * pi * r_circ;
