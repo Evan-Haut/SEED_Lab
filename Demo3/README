@@ -6,7 +6,7 @@ the beacon and circle it within 3 inches of its starting position. It works by i
 opposing sign voltages to each motor, until the beacon has been detected. Once the beacon is found by the camera, the Pi then tells the arduino to stop turning by 
 sending a 1, the desired angle of correction between the camera and beacon, and distance to the beacon are sent as well. It will the turn the necessary correction 
 angle and drive within 1ft of the beacon. Then it will send opposing voltages again to the motors, turning pi/6 or pi/7. Once, this turn is complete, the motors will
-spin with same sign voltages but at different magnitudes. This allowed the robot to create a circular path arounf the beacon until it has reached its full distance, 
+spin with same sign voltages but at different magnitudes. This allows the robot to create a circular path around the beacon until it has reached its full distance, 
 which is within 3 inches of its starting point. Once this has been completed, it reaches its final state, the stop state, and its journey is now concluded. This process
 is done through the use of a state machine, whcih enables the transition between, detecting, angle correction turn, straight line, pi/6 or pi/7 turn, circumnavigate,
 and stop.
