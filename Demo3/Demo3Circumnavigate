@@ -1,11 +1,8 @@
-//7.6V
 
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h> //comm
 #define MY_ADDR 8 //comm 
-
-//char receivedChars[32];
 
 //comm
 // Global variables to be used for I2C communication
@@ -15,7 +12,6 @@ volatile uint8_t msgLength;
 float messageReceived[3]= {0.0,0.0,0.0}; 
 float ii = 0;
 float x;
-//180 and 2 ft
 const float pi = 3.14159;
 bool isInitialValueSet = false;  // This flag will control the updating of cameraDistance and x
 
@@ -32,12 +28,8 @@ float desired_feetcirc = 2 * PI; //input in feet
 float desired_inchescirc = desired_feetcirc * 12;
 float circ_distance = desired_inchescirc / circ * 2 * pi; 
 
-
 //straight line
 float circ7ft = (2*pi*r_7ft);
-// float desired_feet7ft = 6.2;
-// float desired_inches7ft = desired_feet7ft * 12;
-// float distance = desired_inches7ft / circ7ft * 2 * pi;
 float robot_diameter = 15.0; 
 
 //angle in radian
@@ -47,7 +39,6 @@ float desired_angle3;
 float cameraAngle;
 float cameraDistance;
 volatile bool beaconDetected = false;
-
 double ninetyDegrees = pi/3; 
 
 // State Machine States
@@ -101,7 +92,6 @@ long pos_counts_prev[2];
 float pos_previous_rad[2]; 
 
 // Initialize quadrant
-////int quadrant;
 int left_wheel;
 int right_wheel;
 
@@ -144,7 +134,6 @@ float Kp_poscirc = 3.3;
 float Ki_poscirc = 0.65; 
 float Kp_speedcirc = 0.1; 
 float Ki_speedcirc = 0.0001; 
-
 
 // V360 Declarations
 float V360;
@@ -191,7 +180,6 @@ float Ki_angular_speed_90= 1;
 void setup() {
   //comm figure out the baud rate
   Serial.begin(115200); 
-  //Serial.begin(9600); 
 
   Wire.begin(MY_ADDR);
   // Set callback for I2C receive
@@ -241,7 +229,6 @@ void receiveEvent() {
     motor1.write(0);
     motor2.write(0);
 
-
     while (Wire.available()) {
         char c = Wire.read(); // Read a character from the I2C buffer
         //Serial.println(c);
@@ -280,12 +267,6 @@ void receiveEvent() {
   if (receivedChars[0] == '1') {
     beaconDetected = true;
     //Serial.println("Beacon Detected: Yes");
-    // Assuming the message is structured as "1ANGLE_VALUE", where ANGLE_VALUE is directly after '1'
-
-    // Extract the single character at index 1 and convert it to float
-    // Serial.print(receivedChars[1]);
-    // Serial.print(receivedChars[2]);
-    // Serial.print(receivedChars[3]);
 
     String secondChar = String(receivedChars[1])+receivedChars[2]+receivedChars[3];
     // Serial.print(secondChar);
@@ -375,14 +356,12 @@ void detectBeacon(float desired_angle2) {
 
     // Delay to maintain the desired control loop timing
     delay(desired_Ts_ms);
-    
   }
 
   // If the loop exits, it means the beacon has been detected.
   //Serial.println("Beacon detected");
   analogWrite(motorPin[1], 0);
   analogWrite(motorPin[0], 0);
-  //desired_angle3 = robot_current_heading - cameraAngle;
 
   // The new cameraAngle is already in radians, directly use it
   desired_angle3 = robot_current_heading + cameraAngle;
@@ -396,7 +375,6 @@ void turnToDesiredAngle(float desired_angle3) {
   double angle_error_180;
     motor1.write(0);
     motor2.write(0);
-
   // Serial.print("X: ");
   // Serial.println(x);
   do {
@@ -446,8 +424,6 @@ void turnToDesiredAngle(float desired_angle3) {
       motorVoltage[1] = -V180 * 0.04;
 
     // Determine the direction of motor voltages and set the PWM values
-    // PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
-    // PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
     PWM[0] = 255 * (motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * (motorVoltage[1] / batteryVoltage);
 
@@ -513,7 +489,6 @@ void moveToDesiredDistance(float cameraDistance) {
     for (int i = 0; i < 2; i++) {
       pos_counts_prev[i] = pos_counts[i];
       pos_previous_rad[i] = pos_rad[i];
-       
     }
     
     pos_robot7ft = (pos_rad[0] + pos_rad[1]) / 2.0;
@@ -542,8 +517,6 @@ void moveToDesiredDistance(float cameraDistance) {
     motorVoltage[0] = V7ft * 0.10627 * 1.2; //0.26 was decent but not perfect
     motorVoltage[1] = V7ft * 0.0988 * 1.2; //0.2415
 
-    // PWM[0] = 255 * abs(motorVoltage[0] / batteryVoltage);
-    // PWM[1] = 255 * abs(motorVoltage[1] / batteryVoltage);
     PWM[0] = 255 * (motorVoltage[0] / batteryVoltage);
     PWM[1] = 255 * (motorVoltage[1] / batteryVoltage);
     digitalWrite(vsignPin7, motorVoltage[0] <= 0 ? LOW : HIGH);
@@ -577,10 +550,9 @@ void turnAngle90(double ninetyDegrees){
   double angle_error_90;
   motor1.write(0);
   motor2.write(0);
-    float desired_feet7ft = cameraDistance ; 
+  float desired_feet7ft = cameraDistance ; 
   Serial.print("Distance in function: ");
   Serial.println(desired_feet7ft);
-
   float desired_inches7ft = desired_feet7ft * 12;
   float distance = desired_inches7ft / circ7ft * 2 * pi;
 
@@ -635,8 +607,6 @@ void turnAngle90(double ninetyDegrees){
     motorVoltage[1] = Vdelta_90 * 0.12;
 
     // Determine the direction of motor voltages and set the PWM values
-    // PWM[0] = -255 * abs(motorVoltage[0] / batteryVoltage);
-    // PWM[1] = -255 * abs(motorVoltage[1] / batteryVoltage);
     PWM[0] = -255 * (motorVoltage[0] / batteryVoltage);
     PWM[1] = -255 * (motorVoltage[1] / batteryVoltage);
 
@@ -672,10 +642,6 @@ void circumNavigate(float circ_distance) {
     motor1.write(0);
     motor2.write(0);
 
-
-  motor1.write(0);
-  motor2.write(0);
-
   do{
     pos_counts[0] = motor1.read();
     pos_counts[1] = -motor2.read();
@@ -684,7 +650,6 @@ void circumNavigate(float circ_distance) {
     pos_rad[1] = -2 * pi * (double)(pos_counts[1]) / (double)3200;
     pos_rad[0] = -2 * pi * (double)(pos_counts[0]) / (double)3200;
 
-
     motorVelocity[0] = (pos_rad[0] - pos_previous_rad[0])/desired_Ts_ms;
     motorVelocity[1] = (pos_rad[1] - pos_previous_rad[1])/desired_Ts_ms;
 
@@ -692,7 +657,6 @@ void circumNavigate(float circ_distance) {
     for (int i = 0; i < 2; i++) {
       pos_counts_prev[i] = pos_counts[i];
       pos_previous_rad[i] = pos_rad[i];
-       
     }
     pos_robotcirc = (pos_rad[0] + pos_rad[1]) / 2.0;
     position_errorcirc = circ_distance - pos_robotcirc;
@@ -745,7 +709,6 @@ void circumNavigate(float circ_distance) {
 }
 last_time_ms = millis();
 }
-  // currentState = STOP;
 
 void stopMotors(){
   analogWrite(motorPin[0],0);
