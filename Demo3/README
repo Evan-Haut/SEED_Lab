@@ -7,7 +7,8 @@ opposing sign voltages to each motor, until the beacon has been detected. Once t
 sending a 1, the desired angle of correction between the camera and beacon, and distance to the beacon. It will the turn the necessary correction angle and drive 
 within 1ft of the beacon. Then it will send opposing voltages again to the motors, turning 90 degrees. Once, this turn is complete, the motors will spin with same
 sign voltages but at different magnitudes. This allowed the robot to create a circular path arounf the beacon until it has reached its full distance, which is within
-3 inches of its starting point. Once this has been completed, iot reaches its final state, the stop state, and its journey is now concluded. 
+3 inches of its starting point. Once this has been completed, iot reaches its final state, the stop state, and its journey is now concluded. This process is done 
+through the use of a state machine, whcih enables the transition between, detecting, angle correction turn, straight line, 90 degrees turn, circumnavigate, and stop.
 
 Demo3StraightLine contains the code used for the localization and controls portion of the Demo3 for finding the beacon, turning at the angle the beacon gets detected and
 the going straight to the beacon and stopping within one feet of it. It works by initially rotating continuously in a circle, caused by sending opposite sign voltages to 
