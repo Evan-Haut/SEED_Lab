@@ -5,6 +5,6 @@ Demo3Circumnavigate contains the code used for the localization and controls por
 beacon and circle it within 3 inches of its starting position. It works by initially continuously rotating clockwise in a circle. This is caused by sending opposing sign 
 voltages to each motor, until the beacon has been detected. Once the beacon is found by the camera, the Pi then tells the arduino to stop turning, the desired angle of 
 correction between the camera and beacon, and distance to the beacon, through the sending of bits. It will the turn the necessary correction angle and drive within 1ft 
-of the beacon. Then it will send opposing voltages again to the motors, turning_____ degrees. Once, this turn is complete, the motors will spin with same sign voltages 
+of the beacon. Then it will send opposing voltages again to the motors, turning 90 degrees. Once, this turn is complete, the motors will spin with same sign voltages 
 but at different magnitudes. This allowed the robot to create a circular path arounf the beacon until it has reached its full distance, which is within 3 inches of its 
 starting point. Once this has been completed, iot reaches its final state, the stop state, and its journey is now concluded. 
