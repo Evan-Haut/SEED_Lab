@@ -5,3 +5,13 @@ Demo3Circumnavigate contains the code used for the localization and controls por
 the beacon and circle it within 3 inches of its starting position. It works by initially continuously rotating clockwise in a circle. This is caused by sending opposing sign voltages to each motor, until the beacon has been detected. Once the beacon is found by the camera, the Pi then tells the arduino to stop turning, the desired angle of correction between the camera and beacon, and distance to the beacon, through the sending of bits. It will the turn the necessary correction angle and drive within 1ft of the beacon. Then it will send opposing voltages again to the motors, turning 90 degrees. Once, this turn is complete, the motors will spin with same sign
 voltages but at different magnitudes. This allowed the robot to create a circular path arounf the beacon until it has reached its full distance, which is within 3 inches
 of its starting point. Once this has been completed, iot reaches its final state, the stop state, and its journey is now concluded. 
+
+Demo3StraightLine contains the code used for the localization and controls portion of the Demo3 for finding the beacon, turning at the angle the beacon gets detected and
+the going straight to the beacon and stopping within one feet of it. It works by initially rotating continuously in a circle, caused by sending opposite sign voltages to 
+each motor, while the camera looks for the beacon, when the beacon is detected the robot stops movement. Then, it turns the necessary degrees to align with the beacon. We 
+have the coorect angle and distance readings that we get as an input from the camera to the Arduino using I2C communication in the form of an array. We have implemented a
+state machine for the robot to do this. First, it will be in DETECT state where the robot moves for max of 360 degrees until it finds the beacon. When the camera sees the
+beacon, it sends '1' as the first element of the array. The computer vision will also calculate the angle at which the beacon is detected and the distance from it. Then the
+robot goes to TURNING state, where the imput to the turn function is the angle in radians that was communicated from the camera. It will correct it to that angle and then 
+transitions to the next state that is MOVING state. In the moving state, the robot will go up in the staraight line to the beacon and stop within an foot of the beacon. 
+Once the desired distance is reached, the robot transtions to its final state that is STOP state. In this state, the PWM to both the wheels are 0 so, the robot will just stop. 
