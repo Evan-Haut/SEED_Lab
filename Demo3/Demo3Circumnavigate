@@ -556,9 +556,9 @@ void turnAngle90(double ninetyDegrees){
   float distance = desired_inches7ft / circ7ft * 2 * pi;
 
   if (distance > 28){
-    ninetyDegrees = pi/6;//(5*pi)/12;
+    ninetyDegrees = pi/6;
   }else{
-    ninetyDegrees = pi/7;//pi/3;
+    ninetyDegrees = pi/7;
   }
 
   do {
